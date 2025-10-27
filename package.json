@@ -1,5 +1,5 @@
 {
-  "name": "",
+  "name": "daro-cutz",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
@@ -9,6 +9,15 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.14.6"
+    "astro": "5.14.6",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "0.44.7",
+    "jsonwebtoken": "^9.0.2",
+    "postgres": "3.4.7"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "drizzle-kit": "0.31.5"
   }
 }
