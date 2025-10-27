@@ -1,0 +1,392 @@
+---
+import Layout from "../layouts/Layout.astro"
+---
+
+<Layout>
+  <div class="reserva-container">
+    <div class="header">
+      <h1>RESERVAR CITA</h1>
+    </div>
+
+    <div class="selector-dias">
+      <div class="dia-item">
+        <div class="dia-nombre">Lun</div>
+        <div class="dia-numero">18</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item">
+        <div class="dia-nombre">Mar</div>
+        <div class="dia-numero">19</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item selected">
+        <div class="dia-nombre">Mié</div>
+        <div class="dia-numero">20</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item">
+        <div class="dia-nombre">Jue</div>
+        <div class="dia-numero">21</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item">
+        <div class="dia-nombre">Vie</div>
+        <div class="dia-numero">22</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item">
+        <div class="dia-nombre">Sáb</div>
+        <div class="dia-numero">23</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+
+      <div class="dia-item">
+        <div class="dia-nombre">Dom</div>
+        <div class="dia-numero">24</div>
+        <div class="dia-mes">Nov</div>
+      </div>
+    </div>
+
+    <div class="horarios-container">
+      <div class="hora-item">
+        <span class="hora-texto">09:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">09:30</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item ocupada">
+        <span class="hora-texto">10:00</span>
+        <span class="estado ocupada-badge">Ocupada</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">10:30</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">11:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item ocupada">
+        <span class="hora-texto">11:30</span>
+        <span class="estado ocupada-badge">Ocupada</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">12:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">12:30</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">16:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">16:30</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">17:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item ocupada">
+        <span class="hora-texto">17:30</span>
+        <span class="estado ocupada-badge">Ocupada</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">18:00</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+
+      <div class="hora-item">
+        <span class="hora-texto">18:30</span>
+        <span class="estado disponible">Disponible</span>
+      </div>
+    </div>
+
+    <button class="btn-confirmar" disabled>Confirmar Reserva</button>
+
+    <p class="seleccion-info">Selecciona una hora para continuar</p>
+
+    <div class="volver">
+      <a href="#">← Volver al inicio</a>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+
+  .reserva-container {
+    background: #232323;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .header h1 {
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+  }
+
+  .selector-dias {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 0;
+    margin-bottom: 24px;
+  }
+
+  .selector-dias::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .selector-dias::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 2px;
+  }
+
+  .selector-dias::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+    border-radius: 2px;
+  }
+
+  .dia-item {
+    min-width: 70px;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 12px 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .dia-item:hover {
+    background: #1f1f1f;
+    border-color: #6b7280;
+  }
+
+  .dia-item.selected {
+    background: #2d3748;
+    border-color: #6b7280;
+  }
+
+  .dia-nombre {
+    color: #9ca3af;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .dia-item.selected .dia-nombre {
+    color: #ffffff;
+  }
+
+  .dia-numero {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .dia-mes {
+    color: #6b7280;
+    font-size: 10px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .dia-item.selected .dia-mes {
+    color: #9ca3af;
+  }
+
+  .horarios-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .horarios-container::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .horarios-container::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 3px;
+  }
+
+  .horarios-container::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+    border-radius: 3px;
+  }
+
+  .horarios-container::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+  }
+
+  .hora-item {
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .hora-item:hover {
+    background: #1f1f1f;
+    border-color: #6b7280;
+    transform: translateX(4px);
+  }
+
+  .hora-item.selected {
+    background: #2d3748;
+    border-color: #6b7280;
+  }
+
+  .hora-texto {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  .hora-item.ocupada {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #1a1a1a;
+  }
+
+  .hora-item.ocupada:hover {
+    transform: none;
+    border-color: #3a3a3a;
+    background: #1a1a1a;
+  }
+
+  .hora-item.ocupada .hora-texto {
+    text-decoration: line-through;
+  }
+
+  .estado {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .disponible {
+    background: #1f4d2e;
+    color: #7dd3a0;
+  }
+
+  .ocupada-badge {
+    background: #4a2929;
+    color: #e58888;
+  }
+
+  .btn-confirmar {
+    width: 100%;
+    padding: 14px;
+    background: #3a3a3a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 24px;
+  }
+
+  .btn-confirmar:hover {
+    background: #4a4a4a;
+    transform: translateY(-1px);
+  }
+
+  .btn-confirmar:active {
+    transform: translateY(0);
+  }
+
+  .btn-confirmar:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-confirmar:disabled:hover {
+    transform: none;
+    background: #3a3a3a;
+  }
+
+  .seleccion-info {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    margin-top: 16px;
+  }
+
+  .volver {
+    text-align: center;
+    margin-top: 24px;
+  }
+
+  .volver a {
+    color: #9ca3af;
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.3s ease;
+  }
+
+  .volver a:hover {
+    color: #ffffff;
+  }
+</style>
