@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: barbershop
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: barbershop_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  app:
+    build: .
+    ports:
+      - "4321:4321"
+    environment:
+      DATABASE_URL: postgresql://barbershop:${DB_PASSWORD}@postgres:5432/barbershop_db
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
