@@ -1,0 +1,241 @@
+---
+import Layout from "../layouts/Layout.astro"
+---
+
+<Layout>
+	<div class="login-container">
+		<div class="logo">
+			<h1>BIENVENIDO</h1>
+		</div>
+
+		<form id="login-form">
+			<div class="form-group">
+				<label for="email">Correo electrónico</label>
+				<input type="email" id="email" placeholder="tu@email.com" required />
+			</div>
+
+			<div class="form-group">
+				<label for="password">Contraseña</label>
+				<input type="password" id="password" placeholder="••••••••" required />
+			</div>
+
+			<div class="options">
+				<label class="remember-me">
+					<input type="checkbox" id="remember" />
+					<span>Recordarme</span>
+				</label>
+				<a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
+			</div>
+
+			<button type="submit" class="btn-login">Iniciar sesión</button>
+
+			<div class="divider">
+				<span>o</span>
+			</div>
+
+			<div class="signup-link">
+				¿No tienes cuenta? <a href="/register">Regístrate</a>
+			</div>
+		</form>
+	</div>
+</Layout>
+
+<script>
+	const form = document.getElementById("login-form")
+
+	form?.addEventListener("submit", async (e) => {
+		e.preventDefault()
+
+		const email = (document.getElementById("email") as HTMLInputElement)?.value
+		const password = (document.getElementById("password") as HTMLInputElement)?.value
+		const remember = (document.getElementById("remember") as HTMLInputElement)?.checked
+
+		const response = await fetch("/api/auth/login", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				email,
+				password,
+				remember
+			}),
+		})
+
+		const result = await response.json()
+
+		if (result.success) {
+			alert("Inicio de sesión exitoso.")
+			window.location.href = result.redirectTo || "/"
+		} else {
+			alert(`Error: ${result.error}`)
+		}
+	})
+</script>
+
+<style>
+	* {
+		margin: 0;
+		padding: 0;
+		box-sizing: border-box;
+	}
+
+	body {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+			Ubuntu, Cantarell, sans-serif;
+		background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+		min-height: 100vh;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		padding: 20px;
+	}
+
+	.login-container {
+		background: #232323;
+		border-radius: 16px;
+		padding: 48px 40px;
+		width: 100%;
+		max-width: 420px;
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+	}
+
+	.logo {
+		text-align: center;
+		margin-bottom: 40px;
+	}
+
+	.logo h1 {
+		color: #ffffff;
+		font-size: 28px;
+		font-weight: 300;
+		letter-spacing: 2px;
+	}
+
+	.form-group {
+		margin-bottom: 24px;
+	}
+
+	label {
+		display: block;
+		color: #9ca3af;
+		font-size: 14px;
+		margin-bottom: 8px;
+		font-weight: 400;
+	}
+
+	input[type="email"],
+	input[type="password"] {
+		width: 100%;
+		padding: 14px 16px;
+		background: #1a1a1a;
+		border: 1px solid #3a3a3a;
+		border-radius: 8px;
+		color: #ffffff;
+		font-size: 15px;
+		transition: all 0.3s ease;
+		outline: none;
+	}
+
+	input[type="email"]:focus,
+	input[type="password"]:focus {
+		border-color: #6b7280;
+		background: #1f1f1f;
+	}
+
+	input::placeholder {
+		color: #4b5563;
+	}
+
+	.options {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 32px;
+		font-size: 14px;
+	}
+
+	.remember-me {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: #9ca3af;
+		cursor: pointer;
+	}
+
+	.remember-me input[type="checkbox"] {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+		accent-color: #6b7280;
+	}
+
+	.forgot-password {
+		color: #9ca3af;
+		text-decoration: none;
+		transition: color 0.3s ease;
+	}
+
+	.forgot-password:hover {
+		color: #ffffff;
+	}
+
+	.btn-login {
+		width: 100%;
+		padding: 14px;
+		background: #3a3a3a;
+		color: #ffffff;
+		border: none;
+		border-radius: 8px;
+		font-size: 15px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.3s ease;
+	}
+
+	.btn-login:hover {
+		background: #4a4a4a;
+		transform: translateY(-1px);
+	}
+
+	.btn-login:active {
+		transform: translateY(0);
+	}
+
+	.divider {
+		display: flex;
+		align-items: center;
+		margin: 32px 0;
+		color: #6b7280;
+		font-size: 14px;
+	}
+
+	.divider::before,
+	.divider::after {
+		content: "";
+		flex: 1;
+		height: 1px;
+		background: #3a3a3a;
+	}
+
+	.divider span {
+		padding: 0 16px;
+	}
+
+	.signup-link {
+		text-align: center;
+		color: #9ca3af;
+		font-size: 14px;
+	}
+
+	.signup-link a {
+		color: #ffffff;
+		text-decoration: none;
+		font-weight: 500;
+		transition: color 0.3s ease;
+	}
+
+	.signup-link a:hover {
+		color: #d1d5db;
+	}
+</style>
