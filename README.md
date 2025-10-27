@@ -1,5 +1,19 @@
 # Astro Starter Kit: Basics
 
+src/pages/api/
+├── auth/
+│   ├── register.ts      # POST - Registrar usuario
+│   ├── login.ts         # POST - Iniciar sesión
+│   └── logout.ts        # POST - Cerrar sesión
+├── users/
+│   ├── index.ts         # GET - Listar usuarios (solo admin)
+│   └── [id]/
+│       ├── approve.ts   # PATCH - Aprobar usuario (solo admin)
+│       └── index.ts     # GET/DELETE - Ver/eliminar usuario
+└── appointments/
+    ├── index.ts         # GET/POST - Listar/crear citas
+    └── [id].ts          # GET/PATCH/DELETE - Ver/modificar/cancelar cita
+
 ```sh
 npm create astro@latest -- --template basics
 ```
