@@ -22,9 +22,9 @@ export interface AuthUser {
   isApproved: boolean
 }
 
-export function generateToken(payload: JWTPayload, expiresIn: any): string {
+export function generateToken(payload: JWTPayload, remember: boolean): string {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn
+    expiresIn: remember ? "60d" : "1d"
   })
 }
 
@@ -38,12 +38,12 @@ export function verifyToken(token: string): JWTPayload | null {
   }
 }
 
-export function setAuthCookie(cookies: AstroCookies, token: string): void {
+export function setAuthCookie(cookies: AstroCookies, token: string, remember: boolean): void {
   cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: import.meta.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 60, // 60 days
+    maxAge: remember ? 60 * 60 * 24 * 60 : 60 * 60 * 24, // 60 days or 1 day
     path: '/',
   })
 }
