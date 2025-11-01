@@ -7,20 +7,7 @@ export const GET: APIRoute = async ({ locals }) => {
   try {
     const currentUser = locals.user
 
-    if (!currentUser) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No autenticado"
-        }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    if (!currentUser.isAdmin) {
+    if (!currentUser || !currentUser.isAdmin) {
       return new Response(
         JSON.stringify({
           success: false,
