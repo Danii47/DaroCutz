@@ -52,20 +52,7 @@ export const GET: APIRoute = async ({ locals }) => {
 export const POST: APIRoute = async ({ request, locals }) => {
   const currentUser = locals.user
 
-  if (!currentUser) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "No autenticado"
-      }),
-      {
-        status: 401,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
-  }
-
-  if (!currentUser.isAdmin) {
+  if (!currentUser || !currentUser.isAdmin) {
     return new Response(
       JSON.stringify({
         success: false,
@@ -95,6 +82,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const timestamp = new Date(`${date}T${time}:00`)
+
+    if (timestamp < new Date()) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "La fecha y hora de la cita deben ser futuras."
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        }
+      )
+    }
 
     const [newAppointment] = await db
       .insert(appointments)
