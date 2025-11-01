@@ -88,9 +88,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       email: existingUser.email,
       isAdmin: existingUser.isAdmin,
       isApproved: existingUser.isApproved,
-    }, data.remember ? "60d" : "1d")
+    }, data.remember)
 
-    setAuthCookie(cookies, token)
+    setAuthCookie(cookies, token, data.remember)
 
     const redirectTo = existingUser.isAdmin ? "/admin" : "/request-appointment"
 
