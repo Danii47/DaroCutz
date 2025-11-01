@@ -1,301 +1,393 @@
 ---
-import Layout from "../../layouts/Layout.astro";
+import { appendForwardSlash } from "astro:actions";
+import Layout from "@/layouts/Layout.astro";
 
-const cookieHeader = Astro.request?.headers.get("cookie") || ""
-const origin = new URL(Astro.request?.url || "http://localhost:4321").origin
+const cookieHeader = Astro.request?.headers.get("cookie") || "";
+const origin = new URL(Astro.request?.url || "http://localhost:4321").origin;
 const pendingUsersResponse = await fetch(`${origin}/api/users/pending`, {
   headers: { cookie: cookieHeader },
-})
+});
 
-const data = await pendingUsersResponse.json()
-const pendingUsers = data?.users || []
+const data = await pendingUsersResponse.json();
+const pendingUsers = data?.users || [];
 
 const appointmentsResponse = await fetch(`${origin}/api/appointments`, {
   headers: { cookie: cookieHeader },
-})
+});
 
-const appointmentsData = await appointmentsResponse.json()
-const appointments = appointmentsData?.appointments || []
+const appointmentsData = await appointmentsResponse.json();
+const appointments = appointmentsData?.appointments || [];
+
+const booksToday = appointments.filter((appointment: any) => {
+  const appointmentDate = new Date(appointment.appointmentDate);
+  const today = new Date();
+  return (
+    appointmentDate.getDate() === today.getDate() &&
+    appointmentDate.getMonth() === today.getMonth() &&
+    appointmentDate.getFullYear() === today.getFullYear()
+  );
+}).length;
+
+const booksThisWeek = appointments.filter((appointment: any) => {
+  const appointmentDate = new Date(appointment.appointmentDate);
+  const today = new Date();
+  const weekFromToday = new Date();
+  weekFromToday.setDate(today.getDate() + 7);
+
+  return appointmentDate >= today && appointmentDate <= weekFromToday;
+}).length;
+
+const activeDays = Array.from(
+  new Set(
+    appointments.map((appointment: any) => {
+      const appointmentDate = new Date(appointment.appointmentDate);
+      return appointmentDate.toDateString();
+    }),
+  ),
+).length;
+
+const availableHours = appointments.length;
 ---
 
-<Layout>
+<Layout title="Panel de Administración">
   <div class="admin-container">
-    <div class="header">
-      <h1>PANEL DE ADMINISTRACIÓN</h1>
-      <p>Gestión de reservas y disponibilidad</p>
-    </div>
+    <header>
+      <section class="header">
+        <h1>PANEL DE ADMINISTRACIÓN</h1>
+        <p>Gestión de reservas y disponibilidad</p>
+      </section>
+  
+      <section class="stats">
+        <article class="stat-card">
+          <div class="stat-number">{booksToday}</div>
+          <div class="stat-label">Reservas Hoy</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-number">{booksThisWeek}</div>
+          <div class="stat-label">Esta Semana</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-number">{activeDays}</div>
+          <div class="stat-label">Días Activos</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-number">{availableHours}</div>
+          <div class="stat-label">Horas Disponibles</div>
+        </article>
+      </section>
+    </header>
 
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-number">12</div>
-        <div class="stat-label">Reservas Hoy</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">48</div>
-        <div class="stat-label">Esta Semana</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">7</div>
-        <div class="stat-label">Días Activos</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">14</div>
-        <div class="stat-label">Horas Disponibles</div>
-      </div>
-    </div>
-
-    <div class="panel panel-full">
-      <h2 class="panel-title">Añadir Cita Disponible</h2>
-      <form>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="day">Fecha</label>
-            <input type="date" id="day" required />
-          </div>
-          <div class="form-group">
-            <label for="hour">Hora</label>
-            <input type="time" id="hour" required />
-          </div>
-        </div>
-        <button id="create-appointment" type="submit" class="btn btn-add"
-          >+ Añadir Cita Disponible</button
-        >
-      </form>
-
-      <div class="dias-list">
-        {
-          appointments.map((appointment: any) =>
-            <div class="chip">
-              <span>{new Date(appointment.appointmentDate).toLocaleString()}</span>
-              <span class="chip-remove">×</span>
+    <main class="main-panels">
+      <section class="panel panel-full">
+        <h2 class="panel-title">Añadir Cita Disponible</h2>
+        <form>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="day">Fecha</label>
+              <input type="date" id="day" required />
             </div>
-          )
-        }
-      </div>
-    </div>
-
-    <div class="panel panel-full">
-      <h2 class="panel-title">Reservas Actuales</h2>
-      <div class="reservas-list">
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">María García López</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Mié 20 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>10:00</span>
+            <div class="form-group">
+              <label for="hour">Hora</label>
+              <input type="time" id="hour" required />
             </div>
           </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Carlos Martínez Ruiz</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Mié 20 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>11:30</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Ana Fernández Soto</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Mié 20 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>17:30</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Jorge Sánchez Díaz</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Jue 21 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>09:00</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Laura Pérez Gómez</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Jue 21 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>10:30</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Pedro Jiménez Mora</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Vie 22 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>16:00</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="reserva-item">
-          <div class="reserva-header">
-            <span class="reserva-cliente">Isabel Torres Vega</span>
-            <span class="reserva-estado">Confirmada</span>
-          </div>
-          <div class="reserva-info">
-            <div class="reserva-fecha">
-              <span>📅</span>
-              <span>Vie 22 Nov</span>
-            </div>
-            <div class="reserva-hora">
-              <span>🕐</span>
-              <span>18:00</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="panel panel-full">
-      <h2 class="panel-title">Confirmación de Registros Pendientes</h2>
-      <div class="reservas-list">
-        {
-          pendingUsers.map((user: any) => (
-            <div id={user.id} class="reserva-item">
-              <div class="reserva-header">
-                <span class="reserva-cliente">{user.fullName}</span>
-                <span
-                  class="reserva-estado"
-                  style="background: #4a3d29; color: #f0c674;"
-                >
-                  Pendiente
+          <button id="create-appointment" type="submit" class="btn btn-add"
+            >+ Añadir Cita Disponible</button
+          >
+        </form>
+  
+        <div class="dias-list">
+          {
+            appointments.map((appointment: any) => (
+              <div id={appointment.id} class="chip">
+                <span>
+                  {new Date(appointment.appointmentDate).toLocaleString()}
                 </span>
+                <span class="chip-remove">×</span>
               </div>
-              <div class="reserva-info">
-                <div class="reserva-fecha">
-                  <span>📧</span>
-                  <span>{user.email}</span>
+            ))
+          }
+        </div>
+      </section>
+  
+      <section class="panel panel-full">
+        <h2 class="panel-title">Reservas Actuales</h2>
+        <div class="reservas-list">
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">María García López</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Mié 20 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>10:00</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Carlos Martínez Ruiz</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Mié 20 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>11:30</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Ana Fernández Soto</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Mié 20 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>17:30</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Jorge Sánchez Díaz</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Jue 21 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>09:00</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Laura Pérez Gómez</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Jue 21 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>10:30</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Pedro Jiménez Mora</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Vie 22 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>16:00</span>
+              </div>
+            </div>
+          </div>
+  
+          <div class="reserva-item">
+            <div class="reserva-header">
+              <span class="reserva-cliente">Isabel Torres Vega</span>
+              <span class="reserva-estado">Confirmada</span>
+            </div>
+            <div class="reserva-info">
+              <div class="reserva-fecha">
+                <span>📅</span>
+                <span>Vie 22 Nov</span>
+              </div>
+              <div class="reserva-hora">
+                <span>🕐</span>
+                <span>18:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel panel-full">
+        <h2 class="panel-title">Confirmación de Registros Pendientes</h2>
+        <div class="reservas-list">
+          {
+            pendingUsers.map((user: any) => (
+              <div id={user.id} class="reserva-item">
+                <div class="reserva-header">
+                  <span class="reserva-cliente">{user.fullName}</span>
+                  <span
+                    class="reserva-estado"
+                    style="background: #4a3d29; color: #f0c674;"
+                  >
+                    Pendiente
+                  </span>
+                </div>
+                <div class="reserva-info">
+                  <div class="reserva-fecha">
+                    <span>📧</span>
+                    <span>{user.email}</span>
+                  </div>
+                </div>
+                <div class="btn-group" style="margin-top: 12px;">
+                  <button
+                    id="accept-pending-user"
+                    class="btn btn-small btn-add"
+                    style="width: auto;"
+                  >
+                    ✓ Aprobar
+                  </button>
+                  <button
+                    id="reject-pending-user"
+                    class="btn btn-small"
+                    style="width: auto; background: #4a2929;"
+                  >
+                    ✗ Rechazar
+                  </button>
                 </div>
               </div>
-              <div class="btn-group" style="margin-top: 12px;">
-                <button
-                  id="accept-pending-user"
-                  class="btn btn-small btn-add"
-                  style="width: auto;"
-                >
-                  ✓ Aprobar
-                </button>
-                <button
-                  id="reject-pending-user"
-                  class="btn btn-small"
-                  style="width: auto; background: #4a2929;"
-                >
-                  ✗ Rechazar
-                </button>
-              </div>
-            </div>
-          ))
-        }
-      </div>
-    </div>
+            ))
+          }
+        </div>
+      </section>
+    </main>
   </div>
 </Layout>
 
 <script>
-  document.getElementById("create-appointment")?.addEventListener("click", async (e) => {
-    e.preventDefault();
+  import { toast } from "@/lib/toast";
 
-    const date = (document.getElementById("day") as HTMLInputElement)?.value
-    const time = (document.getElementById("hour") as HTMLInputElement)?.value
+  document
+    .getElementById("create-appointment")
+    ?.addEventListener("click", async (e) => {
+      e.preventDefault();
 
-    const response = await fetch(`/api/appointments`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({ date, time }),
-    })
-  })
+      const date = (document.getElementById("day") as HTMLInputElement)?.value;
+      const time = (document.getElementById("hour") as HTMLInputElement)?.value;
+
+      const response = await fetch(`/api/appointments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ date, time }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const appointmentDate = new Date(result.appointment.appointmentDate);
+        const chip = document.createElement("div");
+        chip.className = "chip";
+        chip.innerHTML = `
+        <span>${appointmentDate.toLocaleString()}</span>
+        <span class="chip-remove">×</span>
+      `;
+
+        document.querySelector(".dias-list")?.appendChild(chip);
+
+        toast.success(result.message);
+      } else {
+        toast.error(result.error);
+      }
+    });
 
   document.querySelectorAll("#accept-pending-user").forEach((button) => {
     button.addEventListener("click", async () => {
-      const userId = button.closest(".reserva-item")?.id
+      const appointmentItem = button.closest(".reserva-item");
+      const userId = appointmentItem?.id;
 
       const response = await fetch(`/api/users/${userId}/approve`, {
         method: "POST",
         credentials: "include",
-      })
-    })
-  })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        appointmentItem?.remove();
+
+        toast.success(result.message);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  });
 
   document.querySelectorAll("#reject-pending-user").forEach((button) => {
     button.addEventListener("click", async () => {
-      const userId = button.closest(".reserva-item")?.id
+      const appointmentItem = button.closest(".reserva-item");
+      const userId = appointmentItem?.id;
 
       const response = await fetch(`/api/users/${userId}/reject`, {
         method: "POST",
         credentials: "include",
-      })
-    })
-  })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        appointmentItem?.remove();
+
+        toast.success(result.message);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  });
+
+  document.querySelectorAll(".chip-remove").forEach((chipRemove) => {
+    chipRemove.addEventListener("click", async () => {
+      const chip = chipRemove.closest(".chip");
+      const appointmentId = chip?.id;
+
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        chip?.remove();
+        toast.success(result.message);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  });
 </script>
 
 <style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-      Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    min-height: 100vh;
-    padding: 40px 20px;
-  }
 
   .admin-container {
     max-width: 1200px;
@@ -575,6 +667,12 @@ const appointments = appointmentsData?.appointments || []
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+  }
+
+  .main-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
   }
 
   @media (max-width: 768px) {
