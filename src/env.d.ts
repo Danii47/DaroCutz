@@ -1,6 +1,7 @@
 interface ImportMetaEnv {
   readonly DATABASE_URL: string;
   readonly JWT_SECRET: string;
+  readonly NODE_ENV: 'development' | 'production';
 }
 
 interface ImportMeta {
