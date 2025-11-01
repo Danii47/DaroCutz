@@ -1,11 +1,11 @@
-import { pgTable, uuid, varchar, boolean, timestamp, text, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 
 // Appointment status enum
 export const appointmentStatusEnum = pgEnum("appointment_status", [
   "pending",
   "confirmed",
   "cancelled"
-]);
+])
 
 // Users table
 export const users = pgTable("users", {
