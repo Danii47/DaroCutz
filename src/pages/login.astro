@@ -1,5 +1,5 @@
 ---
-import Layout from "../layouts/Layout.astro"
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
@@ -41,14 +41,18 @@ import Layout from "../layouts/Layout.astro"
 </Layout>
 
 <script>
-	const form = document.getElementById("login-form")
+	import { toast } from "@/lib/toast";
+
+	const form = document.getElementById("login-form");
 
 	form?.addEventListener("submit", async (e) => {
-		e.preventDefault()
+		e.preventDefault();
 
-		const email = (document.getElementById("email") as HTMLInputElement)?.value
-		const password = (document.getElementById("password") as HTMLInputElement)?.value
-		const remember = (document.getElementById("remember") as HTMLInputElement)?.checked
+		const email = (document.getElementById("email") as HTMLInputElement)?.value;
+		const password = (document.getElementById("password") as HTMLInputElement)
+			?.value;
+		const remember = (document.getElementById("remember") as HTMLInputElement)
+			?.checked;
 
 		const response = await fetch("/api/auth/login", {
 			method: "POST",
@@ -58,19 +62,21 @@ import Layout from "../layouts/Layout.astro"
 			body: JSON.stringify({
 				email,
 				password,
-				remember
+				remember,
 			}),
-		})
+		});
 
-		const result = await response.json()
+		const result = await response.json();
 
 		if (result.success) {
-			alert("Inicio de sesión exitoso.")
-			window.location.href = result.redirectTo || "/"
+			toast.success(result.message);
+			setTimeout(() => {
+				window.location.href = result.redirectTo || "/";
+			}, 1000);
 		} else {
-			alert(`Error: ${result.error}`)
+			toast.error(result.error);
 		}
-	})
+	});
 </script>
 
 <style>
