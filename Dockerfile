@@ -1,28 +1,21 @@
-FROM node:20-alpine AS base
-
-# Dependencias
-FROM base AS deps
+# Base Node
+FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-# Build
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copiar código
 COPY . .
+
+# Build de Astro
 RUN npm run build
 
 # Producción
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY package.json ./
+COPY --from=deps /app/dist ./dist
+COPY --from=deps /app/package*.json ./
+RUN npm install --production
 
 EXPOSE 4321
-
-CMD ["node", "./dist/server/entry.mjs"]
+CMD ["node", "dist/server/entry.mjs"]
