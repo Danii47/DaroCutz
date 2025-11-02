@@ -60,7 +60,10 @@ const booksToday =
   }).length || 0;
 ---
 
-<Layout title="Panel de Administración" description="Gestión de reservas y disponibilidad">
+<Layout
+  title="Panel de Administración"
+  description="Gestión de reservas y disponibilidad"
+>
   <div class="admin-container">
     <header>
       <section class="header">
@@ -109,14 +112,26 @@ const booksToday =
 
         <div class="dias-list">
           {
-            appointments.map((appointment: any) => (
-              <div id={appointment.id} class="chip">
-                <span>
-                  {new Date(appointment.appointmentDate).toLocaleString()}
-                </span>
-                <span class="chip-remove">×</span>
-              </div>
-            ))
+            appointments.map((appointment: any) => {
+              const date = new Date(appointment.appointmentDate);
+              const dayOfWeekFormatted = capitalizeWords(
+                date.toLocaleString("es-ES", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                }),
+              );
+
+              return (
+                <div id={appointment.id} class="chip">
+                  <span>{dayOfWeekFormatted}</span>
+                  <span class="chip-remove">×</span>
+                </div>
+              );
+            })
           }
         </div>
       </section>
@@ -128,8 +143,12 @@ const booksToday =
             reserved.map((appointment: any) => {
               const date = new Date(appointment.appointmentDate);
               const dayOfWeekFormatted = capitalizeWords(
-                date.toLocaleDateString("es-ES", { weekday: "short" }) + " " +
-                date.toLocaleDateString("es-ES", { day: "2-digit",  month: "short" }),
+                date.toLocaleDateString("es-ES", { weekday: "short" }) +
+                " " +
+                date.toLocaleDateString("es-ES", {
+                  day: "2-digit",
+                  month: "short",
+                }),
               );
 
               return (
@@ -146,9 +165,10 @@ const booksToday =
                     <div class="reserva-hora">
                       <span>🕐</span>
                       <span>
-                        {date.toLocaleTimeString([], {
+                        {date.toLocaleTimeString("es-ES", {
                           hour: "2-digit",
                           minute: "2-digit",
+                          hour12: false,
                         })}
                       </span>
                     </div>

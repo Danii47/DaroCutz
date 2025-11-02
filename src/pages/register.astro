@@ -76,6 +76,8 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
+  import { toast } from "@/lib/toast";
+
   const form = document.getElementById("register-form");
 
   form?.addEventListener("submit", async (e) => {
@@ -109,10 +111,10 @@ import Layout from "../layouts/Layout.astro";
     const result = await response.json()
 
     if (result.success) {
-      alert("Registro exitoso. Un administrador te aceptará pronto.")
+      toast.success("Registro exitoso. Un administrador te aceptará pronto.")
       window.location.href = "/login"
     } else {
-      alert(`Error: ${result.error}`)
+      toast.error(`Error: ${result.error}`)
     }
   })
 </script>
