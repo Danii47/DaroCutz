@@ -26,10 +26,20 @@ const appointments = appointmentsData?.appointments || [];
 
 const appointmentsSplittedByDay = appointments.reduce(
   (acc: any, appointment: any) => {
-    if (!acc[appointment.appointmentDate]) {
-      acc[appointment.appointmentDate] = [];
+    const date = new Date(appointment.appointmentDate);
+
+    const day = date.getDate();
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+
+    if (!acc[`${month}-${day}-${year}`]) {
+      acc[`${month}-${day}-${year}`] = [];
     }
-    acc[appointment.appointmentDate].push(appointment);
+
+    acc[`${month}-${day}-${year}`].push({
+      appointmentDate: appointment.appointmentDate,
+      ...appointment,
+    });
     return acc;
   },
   {},
@@ -45,7 +55,8 @@ const appointmentsSplittedByDay = appointments.reduce(
     <section class="selector-dias">
       {
         Object.keys(appointmentsSplittedByDay).map((appointmentDate: any) => {
-          const date = new Date(appointmentDate);
+          const [month, day, year] = appointmentDate.split("-");
+          const date = new Date(`${year}-${month}-${day}`);
 
           return (
             <article class="item-day" data-date={appointmentDate}>
