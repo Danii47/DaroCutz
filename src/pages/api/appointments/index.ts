@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
         .from(appointments)
         .where(gt(appointments.appointmentDate, tomorrow))
         .orderBy(appointments.appointmentDate)
-  
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -85,7 +85,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
           headers: { "Content-Type": "application/json" }
         }
       )
-      
+
     } else {
       return new Response(
         JSON.stringify({
@@ -99,7 +99,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
       )
     }
   } catch (error) {
-    console.log(error)
+    console.error(error)
     return new Response(
       JSON.stringify({
         success: false,
@@ -221,7 +221,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     )
 
   } catch (error) {
-    console.log(error)
+    console.error(error)
     return new Response(
       JSON.stringify({
         success: false,

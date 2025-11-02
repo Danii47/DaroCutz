@@ -71,7 +71,7 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
     )
 
   } catch (error) {
-    console.log(error)
+    console.error(error)
     return new Response(
       JSON.stringify({
         success: false,
@@ -122,7 +122,7 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
       .select()
       .from(appointments)
       .where(eq(appointments.userId, currentUser.id))
-    
+
     if (appointmentByUser) {
       return new Response(
         JSON.stringify({
@@ -210,7 +210,7 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
     )
 
   } catch (error) {
-    console.log(error)
+    console.error(error)
     return new Response(
       JSON.stringify({
         success: false,
