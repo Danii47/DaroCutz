@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
@@ -25,7 +24,11 @@ services:
         JWT_SECRET: ${JWT_SECRET}
     container_name: darocutz_app
     ports:
-      - "80:4321"
+      - "8080:4321"
+    environment:
+      # AÑADE ESTO: variables en runtime
+      DATABASE_URL: postgresql://darocutz:${DB_PASSWORD}@postgres:5432/darocutz_db
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
