@@ -25,7 +25,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
-RUN npm install --production
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/src ./src
+
+RUN npm install
 
 EXPOSE 4321
 CMD ["node", "dist/server/entry.mjs"]
