@@ -13,7 +13,9 @@
     "bcryptjs": "^3.0.2",
     "drizzle-orm": "0.44.7",
     "jsonwebtoken": "^9.0.2",
-    "postgres": "3.4.7"
+    "postgres": "3.4.7",
+    "send": "^1.2.0",
+    "server-destroy": "^1.0.1"
   },
   "devDependencies": {
     "@astrojs/node": "^9.5.0",

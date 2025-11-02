@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -12,23 +13,21 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U darocutz"]
+      test: ["CMD-SHELL", "pg_isready -U barbershop"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   app:
-    build:
-      context: .
-      args:
-        DATABASE_URL: postgresql://darocutz:${DB_PASSWORD}@postgres:5432/darocutz_db
-        JWT_SECRET: ${JWT_SECRET}
+    build: .
     container_name: darocutz_app
     ports:
-      - "80:4321"
+      - "80:4321"  # expone la app al puerto 80 público
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://darocutz:${DB_PASSWORD}@postgres:5432/darocutz_db
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - app-network
 
