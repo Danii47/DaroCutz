@@ -24,6 +24,6 @@ export const appointments = pgTable("appointments", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id),
   appointmentDate: timestamp("appointment_date").notNull(),
-  status: appointmentStatusEnum("status").default("confirmed").notNull(),
+  status: appointmentStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
