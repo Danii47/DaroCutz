@@ -3,20 +3,35 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: barbershop_db
+    container_name: darocutz_db
     environment:
-      POSTGRES_USER: barbershop
-      POSTGRES_PASSWORD: dev_password
-      POSTGRES_DB: barbershop_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: darocutz
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: darocutz_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U barbershop"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    container_name: darocutz_app
+    ports:
+      - "80:4321"  # expone la app al puerto 80 público
+    environment:
+      DATABASE_URL: postgresql://darocutz:${DB_PASSWORD}@postgres:5432/darocutz_db
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
 volumes:
   postgres_data:
+
+networks:
+  app-network:
