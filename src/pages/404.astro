@@ -1,8 +1,160 @@
 ---
-import Layout from "../layouts/Layout.astro"
+import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout>
-  <!-- TODO: Añadir página de 404 -->
-  NO ENCONTRADO
+<Layout
+  title="Página no encontrada"
+  description="Error 404 - Página no encontrada"
+>
+  <div class="error-content">
+    <div class="error-code">404</div>
+    <h1 class="error-title">Página no encontrada</h1>
+    <p class="error-description">
+      Parece que te has perdido. Esta página no existe o ha sido movida.
+    </p>
+
+    <div class="error-actions">
+      <a href="/" class="btn-primary"> ← Volver al inicio </a>
+    </div>
+  </div>
 </Layout>
+
+<style>
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* .error-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+  } */
+
+  .error-content {
+    text-align: center;
+    max-width: 600px;
+    width: 100%;
+    position: relative;
+  }
+
+  .error-code {
+    font-size: clamp(6rem, 15vw, 12rem);
+    font-weight: 800;
+    color: #6b7280;
+    line-height: 1;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
+    letter-spacing: -0.05em;
+  }
+
+  .error-title {
+    color: #ffffff;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+
+  .error-description {
+    color: #9ca3af;
+    font-size: clamp(0.875rem, 2vw, 1.125rem);
+    line-height: 1.6;
+    margin-bottom: 3rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 4rem;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 8px 18px;
+    background: #202329;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    border: 1px solid #3a3a3a;
+  }
+
+  .btn-primary:hover {
+    background: #24272e;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 14px 28px;
+    background: transparent;
+    color: #9ca3af;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    border: 1px solid #3a3a3a;
+  }
+
+  .btn-secondary:hover {
+    background: #1a1a1a;
+    color: #ffffff;
+    border-color: #4a4a4a;
+    transform: translateY(-2px);
+  }
+
+  .error-illustration {
+    max-width: 200px;
+    margin: 0 auto;
+    opacity: 0.6;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .error-container {
+      padding: 40px 20px;
+    }
+
+    .error-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .error-illustration {
+      max-width: 150px;
+    }
+  }
+</style>
