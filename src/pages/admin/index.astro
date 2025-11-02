@@ -1,6 +1,6 @@
 ---
-import { appendForwardSlash } from "astro:actions";
 import Layout from "@/layouts/Layout.astro";
+import { capitalizeWords } from "@/lib/utils";
 
 const cookieHeader = Astro.request?.headers.get("cookie") || "";
 const origin = new URL(Astro.request?.url || "http://localhost:4321").origin;
@@ -17,16 +17,6 @@ const appointmentsResponse = await fetch(`${origin}/api/appointments`, {
 
 const appointmentsData = await appointmentsResponse.json();
 const appointments = appointmentsData?.appointments || [];
-
-const booksToday = appointments.filter((appointment: any) => {
-  const appointmentDate = new Date(appointment.appointmentDate);
-  const today = new Date();
-  return (
-    appointmentDate.getDate() === today.getDate() &&
-    appointmentDate.getMonth() === today.getMonth() &&
-    appointmentDate.getFullYear() === today.getFullYear()
-  );
-}).length;
 
 const booksThisWeek = appointments.filter((appointment: any) => {
   const appointmentDate = new Date(appointment.appointmentDate);
@@ -47,6 +37,27 @@ const activeDays = Array.from(
 ).length;
 
 const availableHours = appointments.length;
+
+const reservedAppointments = await fetch(
+  `${origin}/api/appointments?type=reserved`,
+  {
+    headers: { cookie: cookieHeader },
+  },
+);
+
+const reservedData = await reservedAppointments.json();
+const reserved = reservedData?.appointments || [];
+
+const today = new Date();
+const booksToday =
+  reserved?.filter((appointment: any) => {
+    const appointmentDate = new Date(appointment.appointmentDate);
+    return (
+      appointmentDate.getDate() === today.getDate() &&
+      appointmentDate.getMonth() === today.getMonth() &&
+      appointmentDate.getFullYear() === today.getFullYear()
+    );
+  }).length || 0;
 ---
 
 <Layout title="Panel de Administración">
@@ -56,7 +67,7 @@ const availableHours = appointments.length;
         <h1>PANEL DE ADMINISTRACIÓN</h1>
         <p>Gestión de reservas y disponibilidad</p>
       </section>
-  
+
       <section class="stats">
         <article class="stat-card">
           <div class="stat-number">{booksToday}</div>
@@ -95,7 +106,7 @@ const availableHours = appointments.length;
             >+ Añadir Cita Disponible</button
           >
         </form>
-  
+
         <div class="dias-list">
           {
             appointments.map((appointment: any) => (
@@ -109,128 +120,47 @@ const availableHours = appointments.length;
           }
         </div>
       </section>
-  
+
       <section class="panel panel-full">
         <h2 class="panel-title">Reservas Actuales</h2>
         <div class="reservas-list">
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">María García López</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Mié 20 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>10:00</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Carlos Martínez Ruiz</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Mié 20 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>11:30</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Ana Fernández Soto</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Mié 20 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>17:30</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Jorge Sánchez Díaz</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Jue 21 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>09:00</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Laura Pérez Gómez</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Jue 21 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>10:30</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Pedro Jiménez Mora</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Vie 22 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>16:00</span>
-              </div>
-            </div>
-          </div>
-  
-          <div class="reserva-item">
-            <div class="reserva-header">
-              <span class="reserva-cliente">Isabel Torres Vega</span>
-              <span class="reserva-estado">Confirmada</span>
-            </div>
-            <div class="reserva-info">
-              <div class="reserva-fecha">
-                <span>📅</span>
-                <span>Vie 22 Nov</span>
-              </div>
-              <div class="reserva-hora">
-                <span>🕐</span>
-                <span>18:00</span>
-              </div>
-            </div>
-          </div>
+          {
+            reserved.map((appointment: any) => {
+              const date = new Date(appointment.appointmentDate);
+              const dayOfWeekFormatted = capitalizeWords(
+                date.toLocaleDateString("es-ES", { weekday: "short" }) + " " +
+                date.toLocaleDateString("es-ES", { day: "2-digit",  month: "short" }),
+              );
+
+              return (
+                <div id={appointment.id} class="reserva-item">
+                  <div class="reserva-header">
+                    <span class="reserva-cliente">{appointment.userName}</span>
+                    <span class="reserva-estado">Confirmada</span>
+                  </div>
+                  <div class="reserva-info">
+                    <div class="reserva-fecha">
+                      <span>📅</span>
+                      <span>{dayOfWeekFormatted}</span>
+                    </div>
+                    <div class="reserva-hora">
+                      <span>🕐</span>
+                      <span>
+                        {date.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div>
+                      <span>📞</span>
+                      <span>{appointment.userPhone}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          }
         </div>
       </section>
       <section class="panel panel-full">
@@ -388,7 +318,6 @@ const availableHours = appointments.length;
 </script>
 
 <style>
-
   .admin-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -587,7 +516,7 @@ const availableHours = appointments.length;
     border-top: 1px solid #3a3a3a;
   }
 
-  .chip {
+  .dias-list :global(.chip) {
     background: #1a1a1a;
     border: 1px solid #3a3a3a;
     border-radius: 8px;
@@ -599,7 +528,7 @@ const availableHours = appointments.length;
     gap: 8px;
   }
 
-  .chip-remove {
+  .dias-list :global(.chip-remove) {
     color: #9ca3af;
     cursor: pointer;
     font-size: 16px;
