@@ -144,11 +144,11 @@ const booksToday =
               const date = new Date(appointment.appointmentDate);
               const dayOfWeekFormatted = capitalizeWords(
                 date.toLocaleDateString("es-ES", { weekday: "short" }) +
-                " " +
-                date.toLocaleDateString("es-ES", {
-                  day: "2-digit",
-                  month: "short",
-                }),
+                  " " +
+                  date.toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "short",
+                  }),
               );
 
               return (
@@ -231,6 +231,7 @@ const booksToday =
 
 <script>
   import { toast } from "@/lib/toast";
+  import { capitalizeWords } from "@/lib/utils";
 
   document
     .getElementById("create-appointment")
@@ -252,11 +253,22 @@ const booksToday =
       const result = await response.json();
 
       if (result.success) {
-        const appointmentDate = new Date(result.appointment.appointmentDate);
+        const date = new Date(result.appointment.appointmentDate);
+        const dayOfWeekFormatted = capitalizeWords(
+          date.toLocaleString("es-ES", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+        );
+
         const chip = document.createElement("div");
         chip.className = "chip";
         chip.innerHTML = `
-        <span>${appointmentDate.toLocaleString()}</span>
+        <span>${dayOfWeekFormatted}</span>
         <span class="chip-remove">×</span>
       `;
 
