@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken"
 import type { AstroCookies } from 'astro'
 
-const JWT_SECRET = import.meta.env.JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET
 const COOKIE_NAME = 'auth_token'
 
 if (!JWT_SECRET) {
@@ -41,7 +41,7 @@ export function verifyToken(token: string): JWTPayload | null {
 export function setAuthCookie(cookies: AstroCookies, token: string, remember: boolean): void {
   cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: import.meta.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: remember ? 60 * 60 * 24 * 60 : 60 * 60 * 24, // 60 days or 1 day
     path: '/',
@@ -60,7 +60,7 @@ export function clearAuthCookie(cookies: AstroCookies): void {
 
 export function getAuthUser(cookies: AstroCookies): AuthUser | null {
   const token = getAuthToken(cookies)
-  
+
   if (!token) {
     return null
   }
