@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import { appointments, users } from "@/lib/db/schema"
 import type { APIRoute } from "astro"
 import { and, eq, gt, gte, isNotNull } from "drizzle-orm"
+import { fromZonedTime } from 'date-fns-tz'
 
 export const GET: APIRoute = async ({ url, locals }) => {
   const currentUser = locals.user
@@ -145,12 +146,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       )
     }
 
-    const dateTimeString = `${date}T${time}:00`
-    const timestamp = new Date(
-      new Date(dateTimeString).toLocaleString('en-US', {
-        timeZone: 'Europe/Madrid'
-      })
-    )
+    const timestamp = fromZonedTime(`${date}T${time}:00`, 'Europe/Madrid')
 
     if (timestamp < new Date()) {
       return new Response(
