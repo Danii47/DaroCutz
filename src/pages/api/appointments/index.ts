@@ -145,7 +145,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       )
     }
 
-    const timestamp = new Date(`${date}T${time}:00`)
+    const dateTimeString = `${date}T${time}:00`
+    const timestamp = new Date(
+      new Date(dateTimeString).toLocaleString('en-US', {
+        timeZone: 'Europe/Madrid'
+      })
+    )
 
     if (timestamp < new Date()) {
       return new Response(
