@@ -62,13 +62,13 @@ const appointmentsSplittedByDay = appointments.reduce(
             <article class="item-day" data-date={appointmentDate}>
               <div class="dia-nombre">
                 {date
-                  .toLocaleDateString("es-ES", { weekday: "short" })
+                  .toLocaleString("es-ES", { weekday: "short", timeZone: "Europe/Madrid" })
                   .toUpperCase()}
               </div>
               <div class="dia-numero">{date.getDate()}</div>
               <div class="dia-mes">
                 {date
-                  .toLocaleDateString("es-ES", { month: "short" })
+                  .toLocaleString("es-ES", { month: "short", timeZone: "Europe/Madrid" })
                   .toUpperCase()}
               </div>
               <div class="dia-anio">{date.getFullYear()}</div>
@@ -209,10 +209,11 @@ const appointmentsSplittedByDay = appointments.reduce(
       }
 
       horaItem.innerHTML = `
-        <span class="hora-texto">${date.toLocaleTimeString("es-ES", {
+        <span class="hora-texto">${date.toLocaleString("es-ES", {
           hour: "2-digit",
           minute: "2-digit",
           hour12: false,
+          timeZone: "Europe/Madrid",
         })}</span>
         <span class="estado ${estadoClass}">
           ${estadoText}
