@@ -1,8 +1,10 @@
 node_modules
 .git
+.github
 .env
 .env.*
 dist
+README.md
 .astro
 *.log
 npm-debug.log*
