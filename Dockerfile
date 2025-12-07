@@ -1,34 +1,51 @@
-# Base Node
-FROM node:20-alpine AS deps
+M node:20-alpine AS base
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
+# Variables para que Astro escuche en todas las interfaces dentro del contenedor
+ENV HOST=0.0.0.0
+ENV PORT=4321
 
-# Build de Astro
-FROM node:20-alpine AS builder
-WORKDIR /app
+# 2. Deps: Instalamos TODAS las dependencias (necesarias para el build)
+FROM base AS deps
+COPY package*.json ./
+RUN npm ci
+
+# 3. Production Deps: Instalamos SOLO dependencias de producción
+# Esto es clave: creamos una carpeta node_modules limpia y ligera para el final
+FROM base AS production-deps
+COPY package*.json ./
+RUN npm ci --only=production
+
+# 4. Builder: Construimos la aplicación
+FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Declarar ARGs que se pueden pasar desde docker-compose
+# ARGS y ENVS para el build
+# NOTA: Al construir en el servidor, esto es "seguro", pero recuerda que 
+# estas variables quedarán grabadas en el historial de la imagen.
 ARG DATABASE_URL
 ARG JWT_SECRET
-
-# Convertirlos en ENV para que Astro los vea durante el build
 ENV DATABASE_URL=$DATABASE_URL
 ENV JWT_SECRET=$JWT_SECRET
 
 RUN npm run build
 
-# Producción
-FROM node:20-alpine AS runner
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=builder /app/src ./src
+# 5. Runner: La imagen final (Pequeña y rápida)
+FROM base AS runner
 
-RUN npm install
+# Copiamos solo los node_modules de producción (Paso 3)
+COPY --from=production-deps /app/node_modules ./node_modules
+
+# Copiamos la carpeta dist generada (Paso 4)
+COPY --from=builder /app/dist ./dist
+
+# Copiamos package.json por si algún script lo requiere (opcional pero recomendado)
+COPY --from=builder /app/package.json ./
+
+# NOTA: He quitado la copia de 'src' y 'drizzle.config.ts'. 
+# En producción, node ejecuta el JS compilado en 'dist', no el TS de 'src'.
+# Si necesitas correr migraciones al inicio, avísame para ajustar esto.
 
 EXPOSE 4321
 CMD ["node", "dist/server/entry.mjs"]
+
