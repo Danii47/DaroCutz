@@ -1,7 +1,7 @@
 import { db } from "@/lib/db"
 import { appointments } from "@/lib/db/schema"
 import type { APIRoute } from "astro"
-import { eq } from "drizzle-orm"
+import { and, eq, gt } from "drizzle-orm"
 
 export const DELETE: APIRoute = async ({ params, locals }) => {
   const currentUser = locals.user
@@ -118,10 +118,12 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
 
 
   try {
+    const date = new Date()
+
     const [appointmentByUser] = await db
       .select()
       .from(appointments)
-      .where(eq(appointments.userId, currentUser.id))
+      .where(and(eq(appointments.userId, currentUser.id), gt(appointments.appointmentDate, date)))
 
     if (appointmentByUser) {
       return new Response(
