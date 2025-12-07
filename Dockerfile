@@ -1,4 +1,4 @@
-M node:20-alpine AS base
+FROM node:20-alpine AS base
 WORKDIR /app
 # Variables para que Astro escuche en todas las interfaces dentro del contenedor
 ENV HOST=0.0.0.0
