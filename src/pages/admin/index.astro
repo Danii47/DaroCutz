@@ -40,9 +40,7 @@ const availableHours = appointments.length;
 
 const reservedAppointments = await fetch(
   `${origin}/api/appointments?type=reserved`,
-  {
-    headers: { cookie: cookieHeader },
-  },
+  { headers: { cookie: cookieHeader } },
 );
 
 const reservedData = await reservedAppointments.json();
