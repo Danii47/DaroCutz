@@ -9,74 +9,74 @@ export interface ToastOptions {
 let toastContainer: HTMLElement | null = null;
 let toastCount = 0;
 
-export function initToastContainer() {
-  if (toastContainer) return;
+const ICONS: Record<ToastType, string> = {
+  success: '✓',
+  error: '✕',
+  warning: '⚠',
+  info: 'ℹ',
+};
 
-  toastContainer = document.createElement('div');
+export function initToastContainer() {
+  if (toastContainer?.isConnected) return;
+
+  toastContainer =
+    document.getElementById('toast-container') ?? document.createElement('div');
   toastContainer.id = 'toast-container';
   toastContainer.setAttribute('aria-live', 'polite');
   toastContainer.setAttribute('aria-atomic', 'true');
-  document.body.appendChild(toastContainer);
+
+  if (!toastContainer.isConnected) {
+    document.body.appendChild(toastContainer);
+  }
 }
 
 export function showToast(message: string, options: ToastOptions = {}) {
-  const {
-    type = 'info',
-    duration = 4000,
-    position = 'top'
-  } = options;
+  const { type = 'info', duration = 4000, position = 'top' } = options;
 
-  if (!toastContainer) {
-    initToastContainer();
-  }
+  initToastContainer();
 
   const toast = document.createElement('div');
-  const toastId = `toast-${++toastCount}`;
-  toast.id = toastId;
+  toast.id = `toast-${++toastCount}`;
   toast.className = `toast toast-${type} toast-${position}`;
-  toast.setAttribute('role', 'alert');
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ'
-  };
+  const icon = document.createElement('div');
+  icon.className = 'toast-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = ICONS[type];
 
-  toast.innerHTML = `
-    <div class="toast-icon">${icons[type]}</div>
-    <div class="toast-message">${message}</div>
-    <button class="toast-close" aria-label="Cerrar notificación">✕</button>
-  `;
+  // textContent, nunca innerHTML: el mensaje puede venir del servidor.
+  const text = document.createElement('div');
+  text.className = 'toast-message';
+  text.textContent = message;
 
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'toast-close';
+  closeBtn.setAttribute('aria-label', 'Cerrar notificación');
+  closeBtn.textContent = '✕';
+
+  toast.append(icon, text, closeBtn);
   toastContainer!.appendChild(toast);
 
-  requestAnimationFrame(() => {
-    toast.classList.add('toast-show');
-  });
+  requestAnimationFrame(() => toast.classList.add('toast-show'));
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const closeToast = () => {
+    if (timer) clearTimeout(timer);
     toast.classList.remove('toast-show');
     toast.classList.add('toast-hide');
-
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-    }, 300);
+    setTimeout(() => toast.remove(), 300);
   };
 
-  const closeBtn = toast.querySelector('.toast-close');
-  closeBtn?.addEventListener('click', closeToast);
+  closeBtn.addEventListener('click', closeToast);
 
   if (duration > 0) {
-    setTimeout(closeToast, duration);
+    timer = setTimeout(closeToast, duration);
   }
 
-  return {
-    close: closeToast,
-    element: toast
-  };
+  return { close: closeToast, element: toast };
 }
 
 export const toast = {

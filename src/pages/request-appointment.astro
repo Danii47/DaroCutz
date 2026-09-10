@@ -1,507 +1,472 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import { verifyToken } from "@/lib/auth";
+import Layout from "@/layouts/Layout.astro";
+import { capitalize, formatMadrid, madridDayKey } from "@/lib/datetime";
+import { getClientSlots } from "@/lib/queries";
 
-const cookieHeader = Astro.request?.headers.get("cookie") || "";
-const origin = new URL(Astro.request?.url || "http://localhost:4321").origin;
+const user = Astro.locals.user!;
 
-const token = Astro.cookies.get("auth_token")?.value;
-let currentUserId = null;
+// Consulta directa: la página ya no se hace un fetch a sí misma, así que no
+// puede quedarse vacía porque falle una llamada interna.
+const slots = await getClientSlots(user.id);
 
-if (token) {
-  try {
-    const payload = await verifyToken(token);
-    currentUserId = payload?.userId;
-  } catch (error) {
-    console.error("Error al verificar token:", error);
-  }
+const myBooking = slots.find((slot) => slot.isMine) ?? null;
+
+const slotsByDay = new Map<string, typeof slots>();
+for (const slot of slots) {
+  const key = madridDayKey(slot.appointmentDate);
+  const group = slotsByDay.get(key);
+  if (group) group.push(slot);
+  else slotsByDay.set(key, [slot]);
 }
 
-const appointmentsResponse = await fetch(`${origin}/api/appointments`, {
-  headers: { cookie: cookieHeader },
-});
+const days = [...slotsByDay.entries()].map(([key, daySlots]) => ({
+  key,
+  slots: daySlots,
+  weekday: formatMadrid(daySlots[0].appointmentDate, { weekday: "short" }),
+  dayNumber: formatMadrid(daySlots[0].appointmentDate, { day: "numeric" }),
+  month: formatMadrid(daySlots[0].appointmentDate, { month: "short" }),
+  freeCount: daySlots.filter((slot) => !slot.isBooked).length,
+}));
 
-const appointmentsData = await appointmentsResponse.json();
-const appointments = appointmentsData?.appointments || [];
-
-const appointmentsSplittedByDay = appointments.reduce(
-  (acc: any, appointment: any) => {
-    const date = new Date(appointment.appointmentDate);
-
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-
-    if (!acc[`${month}-${day}-${year}`]) {
-      acc[`${month}-${day}-${year}`] = [];
-    }
-
-    acc[`${month}-${day}-${year}`].push({
-      appointmentDate: appointment.appointmentDate,
-      ...appointment,
-    });
-    return acc;
-  },
-  {},
-);
+const initialDay = days.find((day) => day.freeCount > 0)?.key ?? days[0]?.key ?? "";
+const todayKey = madridDayKey(new Date());
 ---
 
-<Layout title="Reservar Cita" description="Página para reservar una cita.">
-  <div class="reserva-container">
-    <div class="header">
-      <h1>RESERVAR CITA</h1>
-    </div>
+<Layout title="Reservar cita" description="Elige el día y la hora de tu próximo corte">
+  <main class="page page--booking">
+    <header class="booking-head">
+      <h1 class="page-title">Reservar cita</h1>
+      <p class="page-subtitle">Elige un hueco libre y confirma. Solo puedes tener una cita activa.</p>
+    </header>
 
-    <section class="selector-dias">
+    {
+      myBooking && (
+        <section class="my-booking">
+          <div class="my-booking__label">Tu próxima cita</div>
+          <div class="my-booking__when">
+            {capitalize(
+              formatMadrid(myBooking.appointmentDate, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              }),
+            )}
+            {" · "}
+            {formatMadrid(myBooking.appointmentDate, {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </div>
+          {myBooking.locationName && (
+            <div class="my-booking__where">
+              📍 {myBooking.locationName}
+              {myBooking.locationAddress && ` — ${myBooking.locationAddress}`}
+            </div>
+          )}
+        </section>
+      )
+    }
+
+    <section class="card">
       {
-        Object.keys(appointmentsSplittedByDay).map((appointmentDate: any) => {
-          const [month, day, year] = appointmentDate.split("-");
-          const date = new Date(`${year}-${month}-${day}`);
+        days.length === 0 ? (
+          <div class="empty">
+            <div class="empty__icon">💈</div>
+            <p class="empty__title">No hay huecos publicados ahora mismo</p>
+            <p class="empty__text">Vuelve a mirar en un rato.</p>
+          </div>
+        ) : (
+          <>
+            <div class="day-strip" role="tablist" aria-label="Días disponibles">
+              {days.map((day) => (
+                <button
+                  class:list={[
+                    "day-pill",
+                    { "day-pill--active": day.key === initialDay, "day-pill--full": day.freeCount === 0 },
+                  ]}
+                  type="button"
+                  role="tab"
+                  data-day={day.key}
+                  aria-selected={day.key === initialDay ? "true" : "false"}
+                >
+                  <span class="day-pill__weekday">{day.weekday.toUpperCase()}</span>
+                  <span class="day-pill__number">{day.dayNumber}</span>
+                  <span class="day-pill__month">{day.month.toUpperCase()}</span>
+                  <span class="day-pill__free">
+                    {day.freeCount === 0 ? "Completo" : `${day.freeCount} libre${day.freeCount === 1 ? "" : "s"}`}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-          return (
-            <article class="item-day" data-date={appointmentDate}>
-              <div class="dia-nombre">
-                {date
-                  .toLocaleString("es-ES", { weekday: "short", timeZone: "Europe/Madrid" })
-                  .toUpperCase()}
+            {days.map((day) => (
+              <div
+                class="hours"
+                data-day-panel={day.key}
+                role="tabpanel"
+                hidden={day.key !== initialDay}
+              >
+                <div class="hours__title">
+                  {capitalize(
+                    formatMadrid(day.slots[0].appointmentDate, {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    }),
+                  )}
+                  {day.key === todayKey && <span class="badge badge--warning">Hoy</span>}
+                </div>
+
+                <ul class="hour-list">
+                  {day.slots.map((slot) => (
+                    <li>
+                      <button
+                        class:list={[
+                          "hour",
+                          {
+                            "hour--taken": slot.isBooked && !slot.isMine,
+                            "hour--mine": slot.isMine,
+                          },
+                        ]}
+                        type="button"
+                        data-slot-id={slot.id}
+                        disabled={slot.isBooked}
+                      >
+                        <span class="hour__time">
+                          {formatMadrid(slot.appointmentDate, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}
+                        </span>
+
+                        {slot.locationName && (
+                          <span
+                            class="hour__place"
+                            style={slot.locationColor ? `color:${slot.locationColor}` : undefined}
+                          >
+                            <span class="badge__dot" />
+                            {slot.locationName}
+                          </span>
+                        )}
+
+                        <span
+                          class:list={[
+                            "badge",
+                            slot.isMine
+                              ? "badge--info"
+                              : slot.isBooked
+                                ? "badge--danger"
+                                : "badge--success",
+                          ]}
+                        >
+                          {slot.isMine ? "Tu reserva" : slot.isBooked ? "Ocupada" : "Libre"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div class="dia-numero">{date.getDate()}</div>
-              <div class="dia-mes">
-                {date
-                  .toLocaleString("es-ES", { month: "short", timeZone: "Europe/Madrid" })
-                  .toUpperCase()}
-              </div>
-              <div class="dia-anio">{date.getFullYear()}</div>
-            </article>
-          );
-        })
+            ))}
+
+            <button id="confirm-button" class="btn btn--primary btn--block" type="button" disabled>
+              Confirmar reserva
+            </button>
+            <p id="selection-hint" class="selection-hint">
+              {myBooking
+                ? "Ya tienes una cita reservada. Pide al barbero que la cancele si necesitas cambiarla."
+                : "Selecciona una hora libre para continuar."}
+            </p>
+          </>
+        )
       }
     </section>
-
-    <section class="horarios-container">
-      <p class="horarios-placeholder">
-        Selecciona un día para ver las horas disponibles
-      </p>
-    </section>
-
-    <button id="confirm-button" class="btn-confirmar" disabled
-      >Confirmar Reserva</button
-    >
-
-    <p class="seleccion-info">Selecciona un día y una hora para continuar</p>
-
-    <div class="volver">
-      <a href="/">← Volver al inicio</a>
-    </div>
-  </div>
+  </main>
 </Layout>
-
-<script define:vars={{ appointmentsSplittedByDay, currentUserId }} is:inline>
-  window.appointmentsSplittedByDay = appointmentsSplittedByDay;
-  window.currentUserId = currentUserId;
-</script>
 
 <script>
   import { toast } from "@/lib/toast";
 
-  const appointmentsSplittedByDay = (window as any).appointmentsSplittedByDay;
-  const currentUserId = (window as any).currentUserId;
+  const confirmButton = document.getElementById("confirm-button") as HTMLButtonElement | null;
+  const hint = document.getElementById("selection-hint");
 
-  let selectedDay: Element | null = null;
-  let selectedHour: Element | null = null;
-  let selectedAppointmentId: Date | null = null;
+  let selectedId: string | null = null;
 
-  const confirmButton = document.getElementById(
-    "confirm-button",
-  ) as HTMLButtonElement;
-  const dayItems = document.querySelectorAll(".item-day");
+  // --- Cambio de día -------------------------------------------------------
+  document.querySelectorAll<HTMLButtonElement>("[data-day]").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const day = pill.dataset.day;
 
-  dayItems.forEach((item) => {
-    item.addEventListener("click", () => {
-      dayItems.forEach((i) => i.classList.remove("selected"));
-      item.classList.add("selected");
-      selectedDay = item;
-      selectedAppointmentId = null;
-      selectedHour = null;
-      confirmButton.disabled = true;
-      loadHoursForSelectedDay();
+      document.querySelectorAll<HTMLElement>("[data-day]").forEach((other) => {
+        const active = other === pill;
+        other.classList.toggle("day-pill--active", active);
+        other.setAttribute("aria-selected", String(active));
+      });
+
+      document.querySelectorAll<HTMLElement>("[data-day-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.dayPanel !== day;
+      });
+
+      clearSelection();
     });
   });
 
-  confirmButton.addEventListener("click", async () => {
-    if (selectedAppointmentId) {
-      const response = await fetch(
-        `/api/appointments/${selectedAppointmentId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+  // --- Selección de hora ---------------------------------------------------
+  document.querySelectorAll<HTMLButtonElement>(".hour:not([disabled])").forEach((hour) => {
+    hour.addEventListener("click", () => {
+      document.querySelectorAll(".hour").forEach((other) => other.classList.remove("hour--selected"));
+      hour.classList.add("hour--selected");
+      selectedId = hour.dataset.slotId ?? null;
 
+      if (confirmButton) confirmButton.disabled = !selectedId;
+      if (hint) hint.textContent = "Pulsa «Confirmar reserva» para guardar tu cita.";
+    });
+  });
+
+  function clearSelection() {
+    selectedId = null;
+    document.querySelectorAll(".hour").forEach((hour) => hour.classList.remove("hour--selected"));
+    if (confirmButton) confirmButton.disabled = true;
+  }
+
+  // --- Confirmación --------------------------------------------------------
+  confirmButton?.addEventListener("click", async () => {
+    if (!selectedId) return;
+
+    confirmButton.disabled = true;
+
+    try {
+      const response = await fetch(`/api/appointments/${selectedId}`, { method: "PATCH" });
       const result = await response.json();
 
       if (result.success) {
         toast.success(result.message);
-
-        if (selectedHour) {
-          const estado = selectedHour.querySelector(".estado");
-
-          selectedHour.classList.add("ocupada");
-
-          if (!estado) return;
-
-          estado.classList.remove("disponible");
-          estado.classList.add("tu-reserva-badge");
-          estado.textContent = "Tu reserva";
-        }
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        toast.error(result.error);
+        setTimeout(() => window.location.reload(), 900);
+        return;
       }
+
+      toast.error(result.error || "No se ha podido reservar la cita.");
+      // El hueco puede haberlo cogido otra persona: se recarga para verlo.
+      setTimeout(() => window.location.reload(), 1800);
+    } catch {
+      toast.error("No hay conexión con el servidor. Inténtalo de nuevo.");
+      confirmButton.disabled = false;
     }
   });
-
-  function loadHoursForSelectedDay() {
-    if (!selectedDay) return;
-
-    const horariosContainer = document.querySelector(
-      ".horarios-container",
-    ) as HTMLElement;
-    horariosContainer.innerHTML = "";
-
-    const dateKey = selectedDay.getAttribute("data-date");
-    if (!dateKey) return;
-
-    const appointmentsForDay = appointmentsSplittedByDay[dateKey] || [];
-
-    if (appointmentsForDay.length === 0) {
-      horariosContainer.innerHTML = `
-        <p class="horarios-placeholder">
-          No hay horas disponibles para este día.
-        </p>
-      `;
-      return;
-    }
-
-    appointmentsForDay.forEach((appointment: any) => {
-      const date = new Date(appointment.appointmentDate);
-
-      const horaItem = document.createElement("div");
-      horaItem.classList.add("hora-item");
-
-      const isOwnAppointment = appointment.userId === currentUserId;
-      const isOccupied = appointment.userId && !isOwnAppointment;
-
-      if (appointment.userId) horaItem.classList.add("ocupada");
-      if (isOwnAppointment) horaItem.classList.add("tu-reserva");
-
-      let estadoClass = "disponible";
-      let estadoText = "Disponible";
-
-      if (isOwnAppointment) {
-        estadoClass = "tu-reserva-badge";
-        estadoText = "Tu reserva";
-      } else if (isOccupied) {
-        estadoClass = "ocupada-badge";
-        estadoText = "Ocupada";
-      }
-
-      horaItem.innerHTML = `
-        <span class="hora-texto">${date.toLocaleString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          timeZone: "Europe/Madrid",
-        })}</span>
-        <span class="estado ${estadoClass}">
-          ${estadoText}
-        </span>
-      `;
-
-      if (!appointment.userId) {
-        horaItem.addEventListener("click", () => {
-          document
-            .querySelectorAll(".hora-item")
-            .forEach((i) => i.classList.remove("selected"));
-          horaItem.classList.add("selected");
-          selectedAppointmentId = appointment.id;
-          selectedHour = horaItem;
-          confirmButton.disabled = false;
-        });
-      }
-
-      horariosContainer.appendChild(horaItem);
-    });
-  }
 </script>
 
 <style>
-  body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  .page--booking {
+    max-width: 560px;
   }
 
-  .reserva-container {
-    background: #232323;
-    border-radius: 16px;
-    padding: 48px 40px;
-    width: 100%;
-    max-width: 420px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  .booking-head {
+    margin-bottom: 20px;
   }
 
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
+  .my-booking {
+    background: var(--info-soft);
+    border: 1px solid rgba(127, 178, 240, 0.3);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 20px;
   }
 
-  .header h1 {
-    color: #ffffff;
-    font-size: 28px;
-    font-weight: 300;
-    letter-spacing: 2px;
-    margin-bottom: 24px;
-  }
-
-  .selector-dias {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 4px 0;
-    margin-bottom: 24px;
-  }
-
-  .selector-dias::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .selector-dias::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 2px;
-  }
-
-  .selector-dias::-webkit-scrollbar-thumb {
-    background: #3a3a3a;
-    border-radius: 2px;
-  }
-
-  .item-day {
-    min-width: 70px;
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    padding: 12px 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-align: center;
-    flex-shrink: 0;
-  }
-
-  .item-day:hover {
-    background: #1f1f1f;
-    border-color: #6b7280;
-  }
-
-  .item-day.selected {
-    background: #2d3748;
-    border-color: #6b7280;
-    transform: translateY(-2px);
-  }
-
-  .dia-nombre {
-    color: #9ca3af;
-    font-size: 11px;
-    font-weight: 500;
+  .my-booking__label {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
+    color: var(--info);
     margin-bottom: 4px;
   }
 
-  .item-day.selected .dia-nombre {
-    color: #ffffff;
-  }
-
-  .dia-numero {
-    color: #ffffff;
-    font-size: 18px;
+  .my-booking__when {
+    font-size: 17px;
     font-weight: 600;
   }
 
-  .dia-mes {
-    color: #6b7280;
-    font-size: 10px;
-    text-transform: uppercase;
-    margin-top: 2px;
+  .my-booking__where {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
   }
 
-  .dia-anio {
-    color: #6b7280;
-    font-size: 10px;
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
+  /* ---- Días ---- */
 
-  .item-day.selected .dia-mes {
-    color: #9ca3af;
-  }
-
-  .horarios-container {
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-
-  .horarios-container::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .horarios-container::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 3px;
-  }
-
-  .horarios-container::-webkit-scrollbar-thumb {
-    background: #3a3a3a;
-    border-radius: 3px;
-  }
-
-  .horarios-container::-webkit-scrollbar-thumb:hover {
-    background: #4a4a4a;
-  }
-
-  .horarios-container :global(.hora-item) {
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  .day-strip {
     display: flex;
-    justify-content: space-between;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 22px;
+    scrollbar-width: thin;
+  }
+
+  .day-strip::-webkit-scrollbar { height: 5px; }
+  .day-strip::-webkit-scrollbar-track { background: transparent; }
+  .day-strip::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 99px;
+  }
+
+  .day-pill {
+    flex-shrink: 0;
+    min-width: 82px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    gap: 1px;
+    padding: 11px 10px 9px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
   }
 
-  .horarios-container
-    :global(.hora-item:hover:not(.tu-reserva, .ocupada, .selected)) {
-    background: #1f1f1f;
-    border-color: #6b7280;
-    transform: translateX(4px);
+  .day-pill:hover {
+    border-color: var(--border-strong);
   }
 
-  .horarios-container :global(.hora-item.selected) {
-    background: #2d3748;
-    border-color: #6b7280;
-    transform: translateX(4px);
+  .day-pill--active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 
-  .horarios-container :global(.hora-texto) {
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 500;
+  .day-pill--full {
+    opacity: 0.5;
   }
 
-  .horarios-container :global(.hora-item.ocupada) {
-    opacity: 0.4;
+  .day-pill__weekday {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+  }
+
+  .day-pill--active .day-pill__weekday {
+    color: var(--accent-strong);
+  }
+
+  .day-pill__number {
+    font-size: 21px;
+    font-weight: 650;
+    line-height: 1.15;
+  }
+
+  .day-pill__month {
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--text-subtle);
+  }
+
+  .day-pill__free {
+    margin-top: 4px;
+    font-size: 10.5px;
+    color: var(--text-subtle);
+  }
+
+  /* ---- Horas ---- */
+
+  .hours__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .hour-list {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hour {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.14s ease;
+  }
+
+  .hour:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+    transform: translateX(3px);
+  }
+
+  .hour:disabled {
     cursor: not-allowed;
-    background: #1a1a1a;
-    border-color: #4a2929;
   }
 
-  .horarios-container :global(.hora-item.tu-reserva) {
-    opacity: 1;
-    background: #1a1e25;
-    border-color: #1e2d46;
+  .hour--taken {
+    opacity: 0.5;
   }
 
-  .horarios-container :global(.hora-item.ocupada .hora-texto) {
+  .hour--taken .hour__time {
     text-decoration: line-through;
   }
 
-  .horarios-container :global(.estado) {
-    font-size: 12px;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-weight: 500;
+  .hour--mine {
+    opacity: 1;
+    background: var(--info-soft);
+    border-color: rgba(127, 178, 240, 0.32);
   }
 
-  .horarios-container :global(.disponible) {
-    background: #1f4d2e;
-    color: #7dd3a0;
+  .hour--selected {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    transform: translateX(3px);
   }
 
-  .horarios-container :global(.ocupada-badge) {
-    background: #4a2929;
-    color: #e58888;
+  .hour__time {
+    font-size: 17px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
-  .horarios-container :global(.tu-reserva-badge) {
-    background: #1e2d46;
-    color: #93c5fd;
+  .hour__place {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    flex: 1;
+    min-width: 0;
   }
 
-  .horarios-container :global(.horarios-placeholder) {
+  .hour .badge {
+    margin-left: auto;
+  }
+
+  .hour__place + .badge {
+    margin-left: 0;
+  }
+
+  .selection-hint {
     text-align: center;
-    color: #6b7280;
-    font-size: 14px;
-    padding: 40px 20px;
-  }
-
-  .btn-confirmar {
-    width: 100%;
-    padding: 14px;
-    background: #3a3a3a;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 24px;
-  }
-
-  .btn-confirmar:hover {
-    background: #4a4a4a;
-    transform: translateY(-1px);
-  }
-
-  .btn-confirmar:active {
-    transform: translateY(0);
-  }
-
-  .btn-confirmar:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .btn-confirmar:disabled:hover {
-    transform: none;
-    background: #3a3a3a;
-  }
-
-  .seleccion-info {
-    text-align: center;
-    color: #9ca3af;
-    font-size: 14px;
-    margin-top: 16px;
-  }
-
-  .volver {
-    text-align: center;
-    margin-top: 24px;
-  }
-
-  .volver a {
-    color: #9ca3af;
-    text-decoration: none;
-    font-size: 14px;
-    transition: color 0.3s ease;
-  }
-
-  .volver a:hover {
-    color: #ffffff;
+    color: var(--text-subtle);
+    font-size: 13px;
+    margin-top: 12px;
   }
 </style>

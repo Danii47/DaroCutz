@@ -1,0 +1,115 @@
+/* Avisos flotantes. Se cargan junto al resto del sistema de estilos. */
+
+#toast-container {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  width: 100%;
+  max-width: 440px;
+  padding: 16px;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(-120%);
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+
+.toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-hide {
+  opacity: 0;
+  transform: translateY(-16px);
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.toast-message {
+  flex: 1;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 6px;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.toast-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.toast-success { border-left-color: var(--success); }
+.toast-success .toast-icon { background: var(--success-soft); color: var(--success); }
+
+.toast-error { border-left-color: var(--danger); }
+.toast-error .toast-icon { background: var(--danger-soft); color: var(--danger); }
+
+.toast-warning { border-left-color: var(--warning); }
+.toast-warning .toast-icon { background: var(--warning-soft); color: var(--warning); }
+
+.toast-info { border-left-color: var(--info); }
+.toast-info .toast-icon { background: var(--info-soft); color: var(--info); }
+
+.toast-show:hover {
+  border-color: var(--border-strong);
+}
+
+.toast-bottom { transform: translateY(120%); }
+.toast-bottom.toast-show { transform: translateY(0); }
+.toast-bottom.toast-hide { transform: translateY(16px); }
+
+@media (max-width: 640px) {
+  #toast-container {
+    max-width: 100%;
+    padding: 12px;
+    left: 0;
+    transform: none;
+  }
+
+  .toast {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+}

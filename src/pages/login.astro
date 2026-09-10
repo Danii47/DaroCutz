@@ -1,247 +1,154 @@
 ---
-import Layout from "../layouts/Layout.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const notice =
+  Astro.url.searchParams.get("error") === "pending"
+    ? "Tu cuenta todavía está pendiente de aprobación."
+    : null;
 ---
 
-<Layout title="Iniciar Sesión" description="Accede a tu cuenta para gestionar tus reservas">
-	<div class="login-container">
-		<div class="logo">
-			<h1>BIENVENIDO</h1>
-		</div>
+<Layout title="Iniciar sesión" description="Accede a tu cuenta para gestionar tus reservas" bare>
+  <main class="page page--narrow">
+    <div class="card auth">
+      <div class="auth__head">
+        <span class="brand__mark auth__mark" aria-hidden="true">✂</span>
+        <h1 class="auth__title">DaroCutz</h1>
+        <p class="page-subtitle">Entra para reservar tu cita</p>
+      </div>
 
-		<form id="login-form">
-			<div class="form-group">
-				<label for="email">Correo electrónico</label>
-				<input type="email" id="email" placeholder="tu@email.com" required />
-			</div>
+      {notice && <p class="auth__notice">{notice}</p>}
 
-			<div class="form-group">
-				<label for="password">Contraseña</label>
-				<input type="password" id="password" placeholder="••••••••" required />
-			</div>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label class="field__label" for="email">Correo electrónico</label>
+          <input
+            class="input"
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            placeholder="tu@email.com"
+            required
+          />
+        </div>
 
-			<div class="options">
-				<label class="remember-me">
-					<input type="checkbox" id="remember" />
-					<span>Recordarme</span>
-				</label>
-				<a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
-			</div>
+        <div class="field">
+          <label class="field__label" for="password">Contraseña</label>
+          <input
+            class="input"
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            required
+          />
+        </div>
 
-			<button type="submit" class="btn-login">Iniciar sesión</button>
+        <label class="checkbox auth__remember">
+          <input type="checkbox" id="remember" name="remember" />
+          <span>Mantener la sesión iniciada</span>
+        </label>
 
-			<div class="divider">
-				<span>o</span>
-			</div>
+        <button class="btn btn--primary btn--block" type="submit">Iniciar sesión</button>
+      </form>
 
-			<div class="signup-link">
-				¿No tienes cuenta? <a href="/register">Regístrate</a>
-			</div>
-		</form>
-	</div>
+      <div class="divider"><span>o</span></div>
+
+      <p class="auth__foot">¿No tienes cuenta? <a href="/register">Regístrate</a></p>
+    </div>
+  </main>
 </Layout>
 
 <script>
-	import { toast } from "@/lib/toast";
+  import { toast } from "@/lib/toast";
 
-	const form = document.getElementById("login-form");
+  const form = document.getElementById("login-form") as HTMLFormElement | null;
 
-	form?.addEventListener("submit", async (e) => {
-		e.preventDefault();
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-		const email = (document.getElementById("email") as HTMLInputElement)?.value;
-		const password = (document.getElementById("password") as HTMLInputElement)
-			?.value;
-		const remember = (document.getElementById("remember") as HTMLInputElement)
-			?.checked;
+    const data = new FormData(form);
+    const button = form.querySelector("button[type=submit]") as HTMLButtonElement;
+    button.disabled = true;
 
-		const response = await fetch("/api/auth/login", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				email,
-				password,
-				remember,
-			}),
-		});
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: String(data.get("email") || ""),
+          password: String(data.get("password") || ""),
+          remember: data.get("remember") === "on",
+        }),
+      });
 
-		const result = await response.json();
+      const result = await response.json();
 
-		if (result.success) {
-			toast.success(result.message);
-			setTimeout(() => {
-				window.location.href = result.redirectTo || "/";
-			}, 1000);
-		} else {
-			toast.error(result.error);
-		}
-	});
+      if (result.success) {
+        toast.success(result.message);
+        window.location.href = result.redirectTo || "/";
+        return;
+      }
+
+      toast.error(result.error);
+      button.disabled = false;
+    } catch {
+      toast.error("No hay conexión con el servidor. Inténtalo de nuevo.");
+      button.disabled = false;
+    }
+  });
 </script>
 
 <style>
-	* {
-		margin: 0;
-		padding: 0;
-		box-sizing: border-box;
-	}
+  .auth {
+    padding: 34px 30px;
+  }
 
-	body {
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-			Ubuntu, Cantarell, sans-serif;
-		background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-		min-height: 100vh;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		padding: 20px;
-	}
+  .auth__head {
+    text-align: center;
+    margin-bottom: 26px;
+  }
 
-	.login-container {
-		background: #232323;
-		border-radius: 16px;
-		padding: 48px 40px;
-		width: 100%;
-		max-width: 420px;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-	}
+  .auth__mark {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 14px;
+    font-size: 21px;
+    border-radius: 13px;
+  }
 
-	.logo {
-		text-align: center;
-		margin-bottom: 40px;
-	}
+  .auth__title {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
 
-	.logo h1 {
-		color: #ffffff;
-		font-size: 28px;
-		font-weight: 300;
-		letter-spacing: 2px;
-	}
+  .auth__notice {
+    background: var(--warning-soft);
+    border: 1px solid rgba(232, 191, 106, 0.32);
+    color: var(--warning);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+    font-size: 13.5px;
+    margin-bottom: 20px;
+  }
 
-	.form-group {
-		margin-bottom: 24px;
-	}
+  .auth__remember {
+    margin: 18px 0;
+  }
 
-	label {
-		display: block;
-		color: #9ca3af;
-		font-size: 14px;
-		margin-bottom: 8px;
-		font-weight: 400;
-	}
+  .auth__foot {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
 
-	input[type="email"],
-	input[type="password"] {
-		width: 100%;
-		padding: 14px 16px;
-		background: #1a1a1a;
-		border: 1px solid #3a3a3a;
-		border-radius: 8px;
-		color: #ffffff;
-		font-size: 15px;
-		transition: all 0.3s ease;
-		outline: none;
-	}
-
-	input[type="email"]:focus,
-	input[type="password"]:focus {
-		border-color: #6b7280;
-		background: #1f1f1f;
-	}
-
-	input::placeholder {
-		color: #4b5563;
-	}
-
-	.options {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 32px;
-		font-size: 14px;
-	}
-
-	.remember-me {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: #9ca3af;
-		cursor: pointer;
-	}
-
-	.remember-me input[type="checkbox"] {
-		width: 16px;
-		height: 16px;
-		cursor: pointer;
-		accent-color: #6b7280;
-	}
-
-	.forgot-password {
-		color: #9ca3af;
-		text-decoration: none;
-		transition: color 0.3s ease;
-	}
-
-	.forgot-password:hover {
-		color: #ffffff;
-	}
-
-	.btn-login {
-		width: 100%;
-		padding: 14px;
-		background: #3a3a3a;
-		color: #ffffff;
-		border: none;
-		border-radius: 8px;
-		font-size: 15px;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.3s ease;
-	}
-
-	.btn-login:hover {
-		background: #4a4a4a;
-		transform: translateY(-1px);
-	}
-
-	.btn-login:active {
-		transform: translateY(0);
-	}
-
-	.divider {
-		display: flex;
-		align-items: center;
-		margin: 32px 0;
-		color: #6b7280;
-		font-size: 14px;
-	}
-
-	.divider::before,
-	.divider::after {
-		content: "";
-		flex: 1;
-		height: 1px;
-		background: #3a3a3a;
-	}
-
-	.divider span {
-		padding: 0 16px;
-	}
-
-	.signup-link {
-		text-align: center;
-		color: #9ca3af;
-		font-size: 14px;
-	}
-
-	.signup-link a {
-		color: #ffffff;
-		text-decoration: none;
-		font-weight: 500;
-		transition: color 0.3s ease;
-	}
-
-	.signup-link a:hover {
-		color: #d1d5db;
-	}
+  @media (max-width: 640px) {
+    .auth {
+      padding: 28px 22px;
+    }
+  }
 </style>

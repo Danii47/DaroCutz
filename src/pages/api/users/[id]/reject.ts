@@ -1,86 +1,45 @@
 import type { APIRoute } from "astro"
+import { and, eq, gte } from "drizzle-orm"
+import { errors, fail, isUuid, ok, requireAdmin } from "@/lib/api"
 import { db } from "@/lib/db"
-import { users } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { appointments, users } from "@/lib/db/schema"
 
 export const POST: APIRoute = async ({ params, locals }) => {
+  const { user, response } = requireAdmin(locals)
+  if (!user) return response
+
+  const userId = params.id
+
+  if (!isUuid(userId)) return fail("Identificador de usuario inválido.")
+
+  if (userId === user.id) {
+    return fail("No puedes eliminar tu propia cuenta.")
+  }
+
   try {
-    const userId = params.id
-
-    if (!userId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "ID de usuario es requerido"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const currentUser = locals.user
-
-    if (!currentUser || !currentUser.isAdmin) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No tienes permisos para realizar esta acción"
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const [user] = await db
-      .select()
+    const [target] = await db
+      .select({ id: users.id, fullName: users.fullName, isAdmin: users.isAdmin })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1)
 
-    if (!user) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Usuario no encontrado"
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
+    if (!target) return errors.notFound("Usuario")
+    if (target.isAdmin) return fail("No se puede eliminar a un administrador.", 403)
 
-    await db
-      .delete(users)
-      .where(eq(users.id, userId))
+    await db.transaction(async (tx) => {
+      // Sus huecos futuros vuelven a quedar libres en lugar de arrastrar una
+      // reserva huérfana.
+      await tx
+        .update(appointments)
+        .set({ userId: null, status: "pending" })
+        .where(and(eq(appointments.userId, userId), gte(appointments.appointmentDate, new Date())))
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Usuario ${user.fullName} rechazado y eliminado exitosamente`
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+      await tx.delete(users).where(eq(users.id, userId))
+    })
 
+    return ok({ message: `${target.fullName} ha sido rechazado y eliminado.` })
   } catch (error) {
     console.error("Error al rechazar usuario:", error)
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Error al rechazar usuario"
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    return errors.server()
   }
 }

@@ -1,94 +1,32 @@
 import type { APIRoute } from "astro"
+import { and, eq } from "drizzle-orm"
+import { errors, fail, isUuid, ok, requireAdmin } from "@/lib/api"
 import { db } from "@/lib/db"
 import { users } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
 
 export const POST: APIRoute = async ({ params, locals }) => {
+  const { user, response } = requireAdmin(locals)
+  if (!user) return response
+
+  const userId = params.id
+
+  if (!isUuid(userId)) return fail("Identificador de usuario inválido.")
+
   try {
-    const userId = params.id
-
-    if (!userId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "ID de usuario es requerido"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const currentUser = locals.user
-
-    if (!currentUser || !currentUser.isAdmin) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No tienes permisos para realizar esta acción"
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1)
-
-    if (!user) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Usuario no encontrado"
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
     const [approvedUser] = await db
       .update(users)
       .set({ isApproved: true })
-      .where(eq(users.id, userId))
-      .returning({
-        id: users.id,
-        fullName: users.fullName,
-        email: users.email,
-        isApproved: users.isApproved,
-      })
+      .where(and(eq(users.id, userId), eq(users.isApproved, false)))
+      .returning({ id: users.id, fullName: users.fullName, email: users.email })
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Usuario ${approvedUser.fullName} aprobado exitosamente`,
-        user: approvedUser
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    if (!approvedUser) return errors.notFound("Usuario pendiente")
 
+    return ok({
+      message: `${approvedUser.fullName} ya puede reservar cita.`,
+      user: approvedUser,
+    })
   } catch (error) {
     console.error("Error al aprobar usuario:", error)
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Error al aprobar usuario"
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    return errors.server()
   }
 }

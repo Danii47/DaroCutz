@@ -1,65 +1,83 @@
 import type { APIRoute } from "astro"
+import { sql } from "drizzle-orm"
+import { created, errors, fail, isUniqueViolation, readJson } from "@/lib/api"
 import { db } from "@/lib/db"
 import { users } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
-import bcrypt from "bcryptjs"
+import { hashPassword, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/password"
+import { clientIp, rateLimit } from "@/lib/rate-limit"
+
+
+const MAX_REGISTRATIONS = 5
+const WINDOW_MS = 60 * 60 * 1000
 
 interface RegisterData {
   fullName: string
   email: string
   phone: string
   password: string
-  confirmPassword: string
 }
 
-function validateRegisterData(data: any): data is RegisterData {
-  return (
-    typeof data.fullName === "string" && data.fullName.length >= 3 &&
-    typeof data.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) &&
-    typeof data.phone === "string" && data.phone.length === 9 &&
-    /^[0-9]+$/.test(data.phone) &&
-    typeof data.password === "string" && data.password.length >= 6 &&
-    data.password === data.confirmPassword
-  )
+function validateRegisterData(data: Record<string, unknown>): RegisterData | string {
+  const fullName = typeof data.fullName === "string" ? data.fullName.trim().replace(/\s+/g, " ") : ""
+
+  if (fullName.length < 3 || fullName.length > 120) {
+    return "El nombre debe tener entre 3 y 120 caracteres."
+  }
+
+  const email = typeof data.email === "string" ? data.email.trim().toLowerCase() : ""
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) {
+    return "El correo no es válido."
+  }
+
+  const phone = typeof data.phone === "string" ? data.phone.replace(/[\s-]/g, "") : ""
+
+  if (!/^[0-9]{9}$/.test(phone)) {
+    return "El teléfono debe tener 9 dígitos."
+  }
+
+  const { password, confirmPassword } = data
+
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    return `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`
+  }
+
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return `La contraseña no puede superar los ${MAX_PASSWORD_LENGTH} caracteres.`
+  }
+
+  if (password !== confirmPassword) {
+    return "Las contraseñas no coinciden."
+  }
+
+  return { fullName, email, phone, password }
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, clientAddress }) => {
+  const limit = rateLimit(`register:${clientIp(request, clientAddress)}`, MAX_REGISTRATIONS, WINDOW_MS)
+
+  if (!limit.allowed) {
+    return fail("Demasiados registros desde esta conexión. Inténtalo más tarde.", 429)
+  }
+
   try {
-    const data = await request.json()
+    const body = await readJson(request)
+    if (!body) return fail("Cuerpo de la petición inválido.")
 
-    if (!validateRegisterData(data)) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Datos inválidos. Verifica que todos los campos sean correctos."
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
+    const data = validateRegisterData(body)
+    if (typeof data === "string") return fail(data)
 
     const [existingUser] = await db
-      .select()
+      .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, data.email))
+      .where(sql`lower(${users.email}) = ${data.email}`)
       .limit(1)
 
     if (existingUser) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Este email ya está registrado."
-        }),
-        {
-          status: 409,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
+      return fail("Este correo ya está registrado.", 409)
     }
 
-    const passwordHash = await bcrypt.hash(data.password, 10)
+    const passwordHash = await hashPassword(data.password)
 
     const [newUser] = await db
       .insert(users)
@@ -71,37 +89,18 @@ export const POST: APIRoute = async ({ request }) => {
         isAdmin: false,
         isApproved: false,
       })
-      .returning({
-        id: users.id,
-        fullName: users.fullName,
-        email: users.email,
-        isApproved: users.isApproved,
-      })
+      .returning({ id: users.id, fullName: users.fullName })
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Usuario registrado. Espera la aprobación del administrador.",
-        user: newUser
-      }),
-      {
-        status: 201,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
-
+    return created({
+      message: "Registro completado. Un administrador revisará tu cuenta.",
+      user: newUser,
+    })
   } catch (error) {
-    console.error("Error en registro:", error)
+    if (isUniqueViolation(error)) {
+      return fail("Este correo ya está registrado.", 409)
+    }
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Error al registrar usuario. Inténtalo de nuevo."
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    console.error("Error en registro:", error)
+    return errors.server()
   }
 }

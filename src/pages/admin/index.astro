@@ -1,652 +1,950 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import { capitalizeWords } from "@/lib/utils";
+import { capitalize, formatMadrid, madridDayKey } from "@/lib/datetime";
+import {
+  getLocations,
+  getPendingUsers,
+  getReservedAppointments,
+  getUpcomingSlots,
+} from "@/lib/queries";
 
-const cookieHeader = Astro.request?.headers.get("cookie") || "";
-const origin = new URL(Astro.request?.url || "http://localhost:4321").origin;
-const pendingUsersResponse = await fetch(`${origin}/api/users/pending`, {
-  headers: { cookie: cookieHeader },
-});
+// Se consulta la base de datos directamente. Antes la página se hacía un fetch
+// a sí misma a través del dominio público: si esa llamada fallaba, el panel
+// aparecía vacío sin ningún aviso.
+const [slots, reserved, pendingUsers, places] = await Promise.all([
+  getUpcomingSlots(),
+  getReservedAppointments(),
+  getPendingUsers(),
+  getLocations(),
+]);
 
-const data = await pendingUsersResponse.json();
-const pendingUsers = data?.users || [];
+const activePlaces = places.filter((place) => place.isActive);
+const defaultPlace = activePlaces.find((place) => place.isDefault);
 
-const appointmentsResponse = await fetch(`${origin}/api/appointments`, {
-  headers: { cookie: cookieHeader },
-});
+const todayKey = madridDayKey(new Date());
+const inAWeek = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-const appointmentsData = await appointmentsResponse.json();
-const appointments = appointmentsData?.appointments || [];
-
-const booksThisWeek = appointments.filter((appointment: any) => {
-  const appointmentDate = new Date(appointment.appointmentDate);
-  const today = new Date();
-  const weekFromToday = new Date();
-  weekFromToday.setDate(today.getDate() + 7);
-
-  return appointmentDate >= today && appointmentDate <= weekFromToday;
-}).length;
-
-const activeDays = Array.from(
-  new Set(
-    appointments.map((appointment: any) => {
-      const appointmentDate = new Date(appointment.appointmentDate);
-      return appointmentDate.toDateString();
-    }),
-  ),
+const bookedToday = reserved.filter(
+  (item) => madridDayKey(item.appointmentDate) === todayKey,
 ).length;
 
-const availableHours = appointments.length;
+const bookedThisWeek = reserved.filter(
+  (item) => new Date(item.appointmentDate).getTime() <= inAWeek,
+).length;
 
-const reservedAppointments = await fetch(
-  `${origin}/api/appointments?type=reserved`,
-  { headers: { cookie: cookieHeader } },
-);
+const freeSlots = slots.filter((slot) => !slot.bookedBy).length;
 
-const reservedData = await reservedAppointments.json();
-const reserved = reservedData?.appointments || [];
+// Los huecos se agrupan por día natural de Madrid, no por el del servidor.
+const slotsByDay = new Map<string, typeof slots>();
+for (const slot of slots) {
+  const key = madridDayKey(slot.appointmentDate);
+  const group = slotsByDay.get(key);
+  if (group) group.push(slot);
+  else slotsByDay.set(key, [slot]);
+}
 
-const today = new Date();
-const booksToday =
-  reserved?.filter((appointment: any) => {
-    const appointmentDate = new Date(appointment.appointmentDate);
-    return (
-      appointmentDate.getDate() === today.getDate() &&
-      appointmentDate.getMonth() === today.getMonth() &&
-      appointmentDate.getFullYear() === today.getFullYear()
-    );
-  }).length || 0;
+const stats = [
+  { value: bookedToday, label: "Reservas hoy" },
+  { value: bookedThisWeek, label: "Reservas 7 días" },
+  { value: freeSlots, label: "Huecos libres" },
+  { value: slotsByDay.size, label: "Días con citas" },
+];
+
+const todayInputValue = todayKey;
 ---
 
 <Layout
-  title="Panel de Administración"
-  description="Gestión de reservas y disponibilidad"
+  title="Panel de administración"
+  description="Gestión de reservas, huecos y lugares"
 >
-  <div class="admin-container">
-    <header>
-      <section class="header">
-        <h1>PANEL DE ADMINISTRACIÓN</h1>
-        <p>Gestión de reservas y disponibilidad</p>
-      </section>
-
-      <section class="stats">
-        <article class="stat-card">
-          <div class="stat-number">{booksToday}</div>
-          <div class="stat-label">Reservas Hoy</div>
-        </article>
-        <article class="stat-card">
-          <div class="stat-number">{booksThisWeek}</div>
-          <div class="stat-label">Esta Semana</div>
-        </article>
-        <article class="stat-card">
-          <div class="stat-number">{activeDays}</div>
-          <div class="stat-label">Días Activos</div>
-        </article>
-        <article class="stat-card">
-          <div class="stat-number">{availableHours}</div>
-          <div class="stat-label">Horas Disponibles</div>
-        </article>
-      </section>
+  <main class="page" id="panel">
+    <header class="panel-head">
+      <div>
+        <h1 class="page-title">Panel de administración</h1>
+        <p class="page-subtitle">Huecos, reservas, lugares y altas de clientes</p>
+      </div>
     </header>
 
-    <main class="main-panels">
-      <section class="panel panel-full">
-        <h2 class="panel-title">Añadir Cita Disponible</h2>
-        <form>
+    <section class="stats" aria-label="Resumen">
+      {
+        stats.map((stat) => (
+          <article class="stat">
+            <span class="stat__value">{stat.value}</span>
+            <span class="stat__label">{stat.label}</span>
+          </article>
+        ))
+      }
+    </section>
+
+    <div class="panel-grid">
+      <div class="panel-col">
+      <section class="card">
+        <div class="card__header">
+          <h2 class="card__title">Abrir un hueco</h2>
+          <span class="card__hint">Hora peninsular (Madrid)</span>
+        </div>
+
+        <form id="slot-form" novalidate>
           <div class="form-row">
-            <div class="form-group">
-              <label for="day">Fecha</label>
-              <input type="date" id="day" required />
+            <div class="field">
+              <label class="field__label" for="slot-date">Fecha</label>
+              <input
+                class="input"
+                type="date"
+                id="slot-date"
+                name="date"
+                min={todayInputValue}
+                required
+              />
             </div>
-            <div class="form-group">
-              <label for="hour">Hora</label>
-              <input type="time" id="hour" required />
+            <div class="field">
+              <label class="field__label" for="slot-time">Hora</label>
+              <input class="input" type="time" id="slot-time" name="time" required />
+            </div>
+            <div class="field">
+              <label class="field__label" for="slot-place">Lugar</label>
+              <select
+                class="select"
+                id="slot-place"
+                name="locationId"
+                disabled={activePlaces.length === 0}
+              >
+                {
+                  activePlaces.length === 0 ? (
+                    <option value="">Crea un lugar primero</option>
+                  ) : (
+                    activePlaces.map((place) => (
+                      <option value={place.id} selected={place.id === defaultPlace?.id}>
+                        {place.name}
+                      </option>
+                    ))
+                  )
+                }
+              </select>
             </div>
           </div>
-          <button id="create-appointment" type="submit" class="btn btn-add"
-            >+ Añadir Cita Disponible</button
-          >
+
+          <button class="btn btn--primary btn--block" type="submit" style="margin-top: 18px;">
+            Añadir hueco
+          </button>
         </form>
 
-        <div class="dias-list">
-          {
-            appointments.map((appointment: any) => {
-              const date = new Date(appointment.appointmentDate);
-              const dayOfWeekFormatted = capitalizeWords(
-                date.toLocaleString("es-ES", {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                  timeZone: "Europe/Madrid",
-                }),
-              );
-
-              return (
-                <div id={appointment.id} class="chip">
-                  <span>{dayOfWeekFormatted}</span>
-                  <span class="chip-remove">×</span>
-                </div>
-              );
-            })
-          }
+        <div class="card__header" style="margin-top: 30px;">
+          <h2 class="card__title">Huecos publicados</h2>
+          <span class="card__hint">{slots.length} próximos</span>
         </div>
+
+        {
+          slots.length === 0 ? (
+            <div class="empty">
+              <div class="empty__icon">🗓️</div>
+              <p class="empty__title">Todavía no hay huecos publicados</p>
+              <p class="empty__text">Añade uno con el formulario de arriba.</p>
+            </div>
+          ) : (
+            <div class="scroll-area day-list">
+              {[...slotsByDay.entries()].map(([dayKey, daySlots]) => (
+                <div class="day">
+                  <h3 class="day__title">
+                    {capitalize(
+                      formatMadrid(daySlots[0].appointmentDate, {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      }),
+                    )}
+                    {dayKey === todayKey && <span class="badge badge--warning">Hoy</span>}
+                  </h3>
+
+                  <div class="chips">
+                    {daySlots.map((slot) => (
+                      <div
+                        class:list={["chip", { "chip--booked": slot.bookedBy }]}
+                        data-slot-id={slot.id}
+                      >
+                        <span class="chip__time">
+                          {formatMadrid(slot.appointmentDate, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}
+                        </span>
+
+                        {slot.locationName && (
+                          <span
+                            class="chip__place"
+                            style={
+                              slot.locationColor ? `color:${slot.locationColor}` : undefined
+                            }
+                          >
+                            <span class="badge__dot" />
+                            {slot.locationName}
+                          </span>
+                        )}
+
+                        {slot.bookedBy ? (
+                          <span class="chip__owner" title={slot.bookedByPhone ?? ""}>
+                            {slot.bookedBy}
+                          </span>
+                        ) : (
+                          <button
+                            class="chip__remove"
+                            type="button"
+                            data-action="delete-slot"
+                            data-id={slot.id}
+                            aria-label="Eliminar hueco"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
       </section>
 
-      <section class="panel panel-full">
-        <h2 class="panel-title">Reservas Actuales</h2>
-        <div class="reservas-list">
-          {
-            reserved.map((appointment: any) => {
-              const date = new Date(appointment.appointmentDate);
-              const dayOfWeekFormatted = capitalizeWords(
-                date.toLocaleString("es-ES", { weekday: "short", timeZone: "Europe/Madrid" }) +
-                  " " +
-                  date.toLocaleString("es-ES", {
-                    day: "2-digit",
-                    month: "short",
-                    timeZone: "Europe/Madrid"
-                  }),
-              );
+      <section class="card">
+        <div class="card__header">
+          <h2 class="card__title">Reservas actuales</h2>
+          <span class="card__hint">{reserved.length} confirmadas</span>
+        </div>
 
-              return (
-                <div id={appointment.id} class="reserva-item">
-                  <div class="reserva-header">
-                    <span class="reserva-cliente">{appointment.userName}</span>
-                    <span class="reserva-estado">Confirmada</span>
+        {
+          reserved.length === 0 ? (
+            <div class="empty">
+              <div class="empty__icon">💈</div>
+              <p class="empty__title">Ningún cliente ha reservado todavía</p>
+            </div>
+          ) : (
+            <ul class="scroll-area booking-list">
+              {reserved.map((booking) => (
+                <li class="booking">
+                  <div class="booking__top">
+                    <span class="booking__client">{booking.userName ?? "Sin cliente"}</span>
+                    <span class="badge badge--success">Confirmada</span>
                   </div>
-                  <div class="reserva-info">
-                    <div class="reserva-fecha">
-                      <span>📅</span>
-                      <span>{dayOfWeekFormatted}</span>
-                    </div>
-                    <div class="reserva-hora">
-                      <span>🕐</span>
-                      <span>
-                        {date.toLocaleString("es-ES", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                          timeZone: "Europe/Madrid",
-                        })}
+
+                  <div class="booking__meta">
+                    <span>
+                      📅{" "}
+                      {capitalize(
+                        formatMadrid(booking.appointmentDate, {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "short",
+                        }),
+                      )}
+                    </span>
+                    <span>
+                      🕐{" "}
+                      {formatMadrid(booking.appointmentDate, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </span>
+                    {booking.userPhone && (
+                      <a href={`tel:${booking.userPhone}`}>📞 {booking.userPhone}</a>
+                    )}
+                    {booking.locationName && (
+                      <span style={booking.locationColor ? `color:${booking.locationColor}` : undefined}>
+                        📍 {booking.locationName}
                       </span>
-                    </div>
-                    <div>
-                      <span>📞</span>
-                      <span>{appointment.userPhone}</span>
-                    </div>
+                    )}
                   </div>
-                </div>
-              );
-            })
-          }
-        </div>
+
+                  <div class="btn-group booking__actions">
+                    <button
+                      class="btn btn--ghost btn--sm"
+                      type="button"
+                      data-action="release-slot"
+                      data-id={booking.id}
+                      data-name={booking.userName ?? "este cliente"}
+                    >
+                      Cancelar reserva
+                    </button>
+                    <button
+                      class="btn btn--danger btn--sm"
+                      type="button"
+                      data-action="delete-booked-slot"
+                      data-id={booking.id}
+                      data-name={booking.userName ?? "este cliente"}
+                    >
+                      Eliminar hueco
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
       </section>
-      <section class="panel panel-full">
-        <h2 class="panel-title">Confirmación de Registros Pendientes</h2>
-        <div class="reservas-list">
-          {
-            pendingUsers.map((user: any) => (
-              <div id={user.id} class="reserva-item">
-                <div class="reserva-header">
-                  <span class="reserva-cliente">{user.fullName}</span>
+      </div>
+
+      <div class="panel-col">
+      <section class="card">
+        <div class="card__header">
+          <h2 class="card__title">Lugares</h2>
+          <span class="card__hint">{activePlaces.length} activos</span>
+        </div>
+
+        <form id="place-form" novalidate>
+          <div class="form-row">
+            <div class="field">
+              <label class="field__label" for="place-name">Nombre</label>
+              <input
+                class="input"
+                type="text"
+                id="place-name"
+                name="name"
+                placeholder="Barbería del centro"
+                maxlength="120"
+                required
+              />
+            </div>
+            <div class="field">
+              <label class="field__label" for="place-address">Dirección (opcional)</label>
+              <input
+                class="input"
+                type="text"
+                id="place-address"
+                name="address"
+                placeholder="C/ Mayor 12"
+                maxlength="255"
+              />
+            </div>
+          </div>
+
+          <div class="place-form__foot">
+            <div class="field place-form__color">
+              <label class="field__label" for="place-color">Color</label>
+              <input class="input" type="color" id="place-color" name="color" value="#c9963f" />
+            </div>
+
+            <label class="checkbox">
+              <input type="checkbox" id="place-default" name="isDefault" />
+              <span>Usar por defecto</span>
+            </label>
+
+            <button class="btn btn--primary" type="submit">Crear lugar</button>
+          </div>
+        </form>
+
+        <div class="card__header" style="margin-top: 26px;">
+          <h2 class="card__title">Lugares guardados</h2>
+        </div>
+
+        {
+          places.length === 0 ? (
+            <div class="empty">
+              <div class="empty__icon">📍</div>
+              <p class="empty__title">Aún no has creado ningún lugar</p>
+              <p class="empty__text">
+                Mientras no haya lugares, las citas se crean sin lugar asignado.
+              </p>
+            </div>
+          ) : (
+            <ul class="place-list">
+              {places.map((place) => (
+                <li class:list={["place", { "place--archived": !place.isActive }]}>
                   <span
-                    class="reserva-estado"
-                    style="background: #4a3d29; color: #f0c674;"
-                  >
-                    Pendiente
-                  </span>
-                </div>
-                <div class="reserva-info">
-                  <div class="reserva-fecha">
-                    <span>📧</span>
-                    <span>{user.email}</span>
+                    class="place__dot"
+                    style={`background:${place.color ?? "#71717a"}`}
+                    aria-hidden="true"
+                  />
+                  <div class="place__body">
+                    <div class="place__name">
+                      {place.name}
+                      {place.isDefault && (
+                        <span class="badge badge--info">Por defecto</span>
+                      )}
+                      {!place.isActive && (
+                        <span class="badge badge--neutral">Archivado</span>
+                      )}
+                    </div>
+                    {place.address && <div class="place__address">{place.address}</div>}
                   </div>
-                </div>
-                <div class="btn-group" style="margin-top: 12px;">
-                  <button
-                    id="accept-pending-user"
-                    class="btn btn-small btn-add"
-                    style="width: auto;"
-                  >
-                    ✓ Aprobar
-                  </button>
-                  <button
-                    id="reject-pending-user"
-                    class="btn btn-small"
-                    style="width: auto; background: #4a2929;"
-                  >
-                    ✗ Rechazar
-                  </button>
-                </div>
-              </div>
-            ))
-          }
-        </div>
+
+                  <div class="btn-group">
+                    {place.isActive && !place.isDefault && (
+                      <button
+                        class="btn btn--ghost btn--sm"
+                        type="button"
+                        data-action="default-place"
+                        data-id={place.id}
+                      >
+                        Hacer predeterminado
+                      </button>
+                    )}
+                    {!place.isActive && (
+                      <button
+                        class="btn btn--ghost btn--sm"
+                        type="button"
+                        data-action="restore-place"
+                        data-id={place.id}
+                      >
+                        Reactivar
+                      </button>
+                    )}
+                    <button
+                      class="btn btn--danger btn--sm"
+                      type="button"
+                      data-action="delete-place"
+                      data-id={place.id}
+                      data-name={place.name}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
       </section>
-    </main>
-  </div>
+
+      <section class="card">
+        <div class="card__header">
+          <h2 class="card__title">Altas pendientes</h2>
+          <span class="card__hint">{pendingUsers.length} en espera</span>
+        </div>
+
+        {
+          pendingUsers.length === 0 ? (
+            <div class="empty">
+              <div class="empty__icon">✅</div>
+              <p class="empty__title">No hay solicitudes pendientes</p>
+            </div>
+          ) : (
+            <ul class="scroll-area booking-list">
+              {pendingUsers.map((pending) => (
+                <li class="booking">
+                  <div class="booking__top">
+                    <span class="booking__client">{pending.fullName}</span>
+                    <span class="badge badge--warning">Pendiente</span>
+                  </div>
+                  <div class="booking__meta">
+                    <span>📧 {pending.email}</span>
+                    <span>📞 {pending.phone}</span>
+                  </div>
+                  <div class="btn-group booking__actions">
+                    <button
+                      class="btn btn--success btn--sm"
+                      type="button"
+                      data-action="approve-user"
+                      data-id={pending.id}
+                    >
+                      Aprobar
+                    </button>
+                    <button
+                      class="btn btn--danger btn--sm"
+                      type="button"
+                      data-action="reject-user"
+                      data-id={pending.id}
+                      data-name={pending.fullName}
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </section>
+      </div>
+    </div>
+  </main>
 </Layout>
 
 <script>
   import { toast } from "@/lib/toast";
-  import { capitalizeWords } from "@/lib/utils";
 
-  document
-    .getElementById("create-appointment")
-    ?.addEventListener("click", async (e) => {
-      e.preventDefault();
+  const panelId = "panel";
 
-      const date = (document.getElementById("day") as HTMLInputElement)?.value;
-      const time = (document.getElementById("hour") as HTMLInputElement)?.value;
+  /**
+   * Vuelve a pedir la propia página y sustituye el panel entero. Así el HTML
+   * solo se escribe una vez (en el .astro) y la lista nunca se desincroniza
+   * de la base de datos tras crear o borrar algo.
+   */
+  async function refreshPanel() {
+    const form = document.getElementById("slot-form") as HTMLFormElement | null;
+    const keep = form
+      ? {
+          date: (form.elements.namedItem("date") as HTMLInputElement).value,
+          time: (form.elements.namedItem("time") as HTMLInputElement).value,
+          locationId: (form.elements.namedItem("locationId") as HTMLSelectElement).value,
+        }
+      : null;
 
-      const response = await fetch(`/api/appointments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ date, time }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const date = new Date(result.appointment.appointmentDate);
-        const dayOfWeekFormatted = capitalizeWords(
-          date.toLocaleString("es-ES", {
-            weekday: "short",
-            day: "2-digit",
-            month: "short",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-            timeZone: "Europe/Madrid",
-          }),
-        );
-
-        const chip = document.createElement("div");
-        chip.className = "chip";
-        chip.innerHTML = `
-        <span>${dayOfWeekFormatted}</span>
-        <span class="chip-remove">×</span>
-      `;
-
-        document.querySelector(".dias-list")?.appendChild(chip);
-
-        toast.success(result.message);
-      } else {
-        toast.error(result.error);
-      }
+    const response = await fetch(window.location.pathname, {
+      headers: { "X-Requested-With": "fetch" },
     });
 
-  document.querySelectorAll("#accept-pending-user").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const appointmentItem = button.closest(".reserva-item");
-      const userId = appointmentItem?.id;
+    if (!response.ok) {
+      window.location.reload();
+      return;
+    }
 
-      const response = await fetch(`/api/users/${userId}/approve`, {
-        method: "POST",
-        credentials: "include",
-      });
+    const html = await response.text();
+    const fresh = new DOMParser().parseFromString(html, "text/html").getElementById(panelId);
+    const current = document.getElementById(panelId);
 
+    if (!fresh || !current) {
+      window.location.reload();
+      return;
+    }
+
+    current.replaceChildren(...Array.from(fresh.childNodes));
+
+    // Se recuperan los valores del formulario para poder encadenar varios huecos.
+    const newForm = document.getElementById("slot-form") as HTMLFormElement | null;
+    if (keep && newForm) {
+      (newForm.elements.namedItem("date") as HTMLInputElement).value = keep.date;
+      (newForm.elements.namedItem("time") as HTMLInputElement).value = keep.time;
+      const select = newForm.elements.namedItem("locationId") as HTMLSelectElement;
+      if (keep.locationId && select.querySelector(`option[value="${keep.locationId}"]`)) {
+        select.value = keep.locationId;
+      }
+    }
+  }
+
+  async function send(url: string, options: RequestInit): Promise<any | null> {
+    try {
+      const response = await fetch(url, options);
       const result = await response.json();
 
-      if (result.success) {
-        appointmentItem?.remove();
-
-        toast.success(result.message);
-      } else {
-        toast.error(result.error);
+      if (!result.success) {
+        toast.error(result.error || "No se ha podido completar la operación.");
+        return null;
       }
-    });
+
+      return result;
+    } catch {
+      toast.error("No hay conexión con el servidor. Inténtalo de nuevo.");
+      return null;
+    }
+  }
+
+  function busy(button: HTMLButtonElement | null, value: boolean) {
+    if (button) button.disabled = value;
+  }
+
+  // --- Crear hueco ---------------------------------------------------------
+  document.addEventListener("submit", async (event) => {
+    const form = event.target as HTMLFormElement;
+
+    if (form.id === "slot-form") {
+      event.preventDefault();
+
+      const data = new FormData(form);
+      const date = String(data.get("date") || "");
+      const time = String(data.get("time") || "");
+      const locationId = String(data.get("locationId") || "");
+
+      if (!date || !time) {
+        toast.error("Indica la fecha y la hora del hueco.");
+        return;
+      }
+
+      const button = form.querySelector("button[type=submit]") as HTMLButtonElement;
+      busy(button, true);
+
+      const result = await send("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, locationId: locationId || null }),
+      });
+
+      busy(button, false);
+
+      if (result) {
+        toast.success(result.message);
+        await refreshPanel();
+        (document.getElementById("slot-time") as HTMLInputElement)?.focus();
+      }
+      return;
+    }
+
+    if (form.id === "place-form") {
+      event.preventDefault();
+
+      const data = new FormData(form);
+      const button = form.querySelector("button[type=submit]") as HTMLButtonElement;
+      busy(button, true);
+
+      const result = await send("/api/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(data.get("name") || ""),
+          address: String(data.get("address") || ""),
+          color: String(data.get("color") || ""),
+          isDefault: data.get("isDefault") === "on",
+        }),
+      });
+
+      busy(button, false);
+
+      if (result) {
+        toast.success(result.message);
+        form.reset();
+        await refreshPanel();
+      }
+    }
   });
 
-  document.querySelectorAll("#reject-pending-user").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const appointmentItem = button.closest(".reserva-item");
-      const userId = appointmentItem?.id;
+  // --- Acciones sobre elementos de las listas ------------------------------
+  // Delegado en document: los botones que aparecen tras un refresco funcionan
+  // igual que los del render inicial.
+  document.addEventListener("click", async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-action]");
+    if (!button) return;
 
-      const response = await fetch(`/api/users/${userId}/reject`, {
-        method: "POST",
-        credentials: "include",
-      });
+    const { action, id, name } = button.dataset;
+    if (!id) return;
 
-      const result = await response.json();
+    busy(button, true);
+    let result: any = null;
 
-      if (result.success) {
-        appointmentItem?.remove();
+    switch (action) {
+      case "delete-slot":
+        result = await send(`/api/appointments/${id}`, { method: "DELETE" });
+        break;
 
-        toast.success(result.message);
-      } else {
-        toast.error(result.error);
-      }
-    });
-  });
+      case "delete-booked-slot":
+        if (!confirm(`Se eliminará el hueco y ${name} se quedará sin cita. ¿Continuar?`)) break;
+        result = await send(`/api/appointments/${id}?force=true`, { method: "DELETE" });
+        break;
 
-  document.querySelectorAll(".chip-remove").forEach((chipRemove) => {
-    chipRemove.addEventListener("click", async () => {
-      const chip = chipRemove.closest(".chip");
-      const appointmentId = chip?.id;
+      case "release-slot":
+        if (!confirm(`Se cancelará la reserva de ${name} y el hueco quedará libre. ¿Continuar?`)) break;
+        result = await send(`/api/appointments/${id}`, { method: "PUT" });
+        break;
 
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      case "approve-user":
+        result = await send(`/api/users/${id}/approve`, { method: "POST" });
+        break;
 
-      const result = await response.json();
+      case "reject-user":
+        if (!confirm(`¿Rechazar y eliminar la cuenta de ${name}?`)) break;
+        result = await send(`/api/users/${id}/reject`, { method: "POST" });
+        break;
 
-      if (result.success) {
-        chip?.remove();
-        toast.success(result.message);
-      } else {
-        toast.error(result.error);
-      }
-    });
+      case "default-place":
+        result = await send(`/api/locations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isDefault: true }),
+        });
+        break;
+
+      case "restore-place":
+        result = await send(`/api/locations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: true }),
+        });
+        break;
+
+      case "delete-place":
+        if (!confirm(`¿Eliminar el lugar "${name}"?`)) break;
+        result = await send(`/api/locations/${id}`, { method: "DELETE" });
+        break;
+    }
+
+    busy(button, false);
+
+    if (result) {
+      toast.success(result.message);
+      await refreshPanel();
+    }
   });
 </script>
 
 <style>
-  .admin-container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .header {
-    text-align: center;
-    margin-bottom: 48px;
-  }
-
-  .header h1 {
-    color: #ffffff;
-    font-size: 32px;
-    font-weight: 300;
-    letter-spacing: 2px;
-    margin-bottom: 8px;
-  }
-
-  .header p {
-    color: #9ca3af;
-    font-size: 14px;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-    gap: 24px;
+  .panel-head {
     margin-bottom: 24px;
-  }
-
-  .panel {
-    background: #232323;
-    border-radius: 16px;
-    padding: 32px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  }
-
-  .panel-full {
-    grid-column: 1 / -1;
-  }
-
-  .panel-title {
-    color: #ffffff;
-    font-size: 20px;
-    font-weight: 500;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #3a3a3a;
-  }
-
-  .form-group {
-    margin-bottom: 20px;
-  }
-
-  label {
-    display: block;
-    color: #9ca3af;
-    font-size: 14px;
-    margin-bottom: 8px;
-    font-weight: 400;
-  }
-
-  input[type="date"],
-  input[type="time"],
-  input[type="text"] {
-    width: 100%;
-    padding: 12px 16px;
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    color: #ffffff;
-    font-size: 15px;
-    transition: all 0.3s ease;
-    outline: none;
-  }
-
-  input[type="date"]:focus,
-  input[type="time"]:focus,
-  input[type="text"]:focus {
-    border-color: #6b7280;
-    background: #1f1f1f;
-  }
-
-  .btn {
-    width: 100%;
-    padding: 12px;
-    background: #3a3a3a;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-
-  .btn:hover {
-    background: #4a4a4a;
-    transform: translateY(-1px);
-  }
-
-  .btn:active {
-    transform: translateY(0);
-  }
-
-  .btn-add {
-    background: #2d4a3e;
-  }
-
-  .btn-add:hover {
-    background: #3a5c4f;
-  }
-
-  .reservas-list {
-    max-height: 500px;
-    overflow-y: auto;
-    padding-right: 8px;
-  }
-
-  .reservas-list::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .reservas-list::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 3px;
-  }
-
-  .reservas-list::-webkit-scrollbar-thumb {
-    background: #3a3a3a;
-    border-radius: 3px;
-  }
-
-  .reserva-item {
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 12px;
-    transition: all 0.3s ease;
-  }
-
-  .reserva-item:hover {
-    border-color: #6b7280;
-    background: #1f1f1f;
-  }
-
-  .reserva-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  .reserva-cliente {
-    color: #ffffff;
-    font-size: 16px;
-    font-weight: 500;
-  }
-
-  .reserva-estado {
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-weight: 500;
-    background: #1f4d2e;
-    color: #7dd3a0;
-  }
-
-  .reserva-info {
-    display: flex;
-    gap: 16px;
-    color: #9ca3af;
-    font-size: 14px;
-  }
-
-  .reserva-fecha,
-  .reserva-hora {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .icon {
-    width: 16px;
-    height: 16px;
-  }
-
-  .dias-list,
-  .horas-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid #3a3a3a;
-  }
-
-  .dias-list :global(.chip) {
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: #ffffff;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .dias-list :global(.chip-remove) {
-    color: #9ca3af;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    transition: color 0.3s ease;
-  }
-
-  .chip-remove:hover {
-    color: #e58888;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 40px;
-    color: #6b7280;
-  }
-
-  .empty-state-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .btn-small {
-    padding: 8px 16px;
-    font-size: 13px;
   }
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 16px;
+    /* min() evita que la columna mínima sea más ancha que la pantalla. */
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 12px;
     margin-bottom: 24px;
   }
 
-  .stat-card {
-    background: #1a1a1a;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
   }
 
-  .stat-number {
-    color: #ffffff;
-    font-size: 32px;
-    font-weight: 600;
-    margin-bottom: 4px;
+  .stat__value {
+    display: block;
+    font-size: 28px;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
   }
 
-  .stat-label {
-    color: #9ca3af;
+  .stat__label {
+    display: block;
+    margin-top: 2px;
     font-size: 12px;
+    color: var(--text-subtle);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.06em;
   }
 
-  .main-panels {
+  /* Dos columnas independientes: cada una apila sus tarjetas sin dejar el
+     hueco muerto que aparece cuando una fila de la rejilla es más alta. */
+  .panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+    gap: 22px;
+    align-items: start;
+  }
+
+  .panel-col {
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 22px;
+    min-width: 0;
   }
 
-  @media (max-width: 768px) {
-    .grid {
+  .card + .card {
+    margin-top: 0;
+  }
+
+  /* ---- Huecos ---- */
+
+  .day-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .day__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 9px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 8px 7px 12px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13.5px;
+    transition: border-color 0.18s ease, background 0.18s ease;
+  }
+
+  .chip:hover {
+    border-color: var(--border-strong);
+  }
+
+  .chip--booked {
+    background: var(--success-soft);
+    border-color: rgba(88, 192, 138, 0.28);
+    padding-right: 13px;
+  }
+
+  .chip__time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .chip__place {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .chip__owner {
+    font-size: 12px;
+    color: var(--success);
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip__remove {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-subtle);
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+
+  .chip__remove:hover:not(:disabled) {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  /* ---- Lugares ---- */
+
+  .place-form__foot {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .place-form__color {
+    width: 78px;
+    flex-shrink: 0;
+  }
+
+  .place-form__foot .checkbox {
+    padding-bottom: 11px;
+  }
+
+  .place-form__foot .btn {
+    margin-left: auto;
+  }
+
+  .place-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .place {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .place--archived {
+    opacity: 0.62;
+  }
+
+  .place__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .place__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .place__name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-weight: 550;
+  }
+
+  .place__address {
+    font-size: 12.5px;
+    color: var(--text-subtle);
+  }
+
+  /* ---- Reservas y altas ---- */
+
+  .booking-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 6px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .booking {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    transition: border-color 0.18s ease;
+  }
+
+  .booking:hover {
+    border-color: var(--border-strong);
+  }
+
+  .booking__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .booking__client {
+    font-weight: 600;
+  }
+
+  .booking__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .booking__meta a {
+    color: inherit;
+  }
+
+  .booking__actions {
+    margin-top: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .panel-grid {
       grid-template-columns: 1fr;
     }
+  }
 
-    .form-row {
-      grid-template-columns: 1fr;
+  @media (max-width: 520px) {
+    .place-form__foot .btn {
+      margin-left: 0;
+      width: 100%;
     }
   }
 </style>
-
-<!-- TODO: AÑADIR POSIBILIDAD DE ACEPTAR REGISTRO DE UN USUARIO -->

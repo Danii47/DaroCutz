@@ -1,51 +1,42 @@
 FROM node:20-alpine AS base
 WORKDIR /app
-# Variables para que Astro escuche en todas las interfaces dentro del contenedor
 ENV HOST=0.0.0.0
 ENV PORT=4321
+ENV TZ=Europe/Madrid
 
-# 2. Deps: Instalamos TODAS las dependencias (necesarias para el build)
+# Dependencias completas (necesarias para el build)
 FROM base AS deps
 COPY package*.json ./
 RUN npm ci
 
-# 3. Production Deps: Instalamos SOLO dependencias de producción
-# Esto es clave: creamos una carpeta node_modules limpia y ligera para el final
+# Solo dependencias de producción, para la imagen final
 FROM base AS production-deps
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
-# 4. Builder: Construimos la aplicación
+# Build. No recibe secretos: la conexión a la base de datos y el JWT_SECRET
+# se leen en tiempo de ejecución, así que no quedan grabados en la imagen.
 FROM base AS builder
+ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# ARGS y ENVS para el build
-# NOTA: Al construir en el servidor, esto es "seguro", pero recuerda que 
-# estas variables quedarán grabadas en el historial de la imagen.
-ARG DATABASE_URL
-ARG JWT_SECRET
-ENV DATABASE_URL=$DATABASE_URL
-ENV JWT_SECRET=$JWT_SECRET
-
 RUN npm run build
 
-# 5. Runner: La imagen final (Pequeña y rápida)
+# Imagen final
 FROM base AS runner
+ENV NODE_ENV=production
 
-# Copiamos solo los node_modules de producción (Paso 3)
-COPY --from=production-deps /app/node_modules ./node_modules
+RUN apk add --no-cache tzdata && chown node:node /app
 
-# Copiamos la carpeta dist generada (Paso 4)
-COPY --from=builder /app/dist ./dist
+# Se copia como "node": el adaptador de Astro guarda las sesiones dentro de
+# node_modules/.astro, así que el usuario sin privilegios necesita poder escribir.
+COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/package.json ./
+COPY --from=builder --chown=node:node /app/drizzle ./drizzle
+COPY --from=builder --chown=node:node /app/scripts ./scripts
 
-# Copiamos package.json por si algún script lo requiere (opcional pero recomendado)
-COPY --from=builder /app/package.json ./
-
-# NOTA: He quitado la copia de 'src' y 'drizzle.config.ts'. 
-# En producción, node ejecuta el JS compilado en 'dist', no el TS de 'src'.
-# Si necesitas correr migraciones al inicio, avísame para ajustar esto.
+USER node
 
 EXPOSE 4321
-CMD ["node", "dist/server/entry.mjs"]
-
+CMD ["sh", "-c", "node scripts/migrate.mjs && node dist/server/entry.mjs"]

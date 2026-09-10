@@ -1,227 +1,143 @@
+import type { APIRoute } from "astro"
+import { and, eq, gt, isNull, ne } from "drizzle-orm"
+import { errors, fail, isUuid, ok, requireAdmin, requireUser } from "@/lib/api"
 import { db } from "@/lib/db"
 import { appointments } from "@/lib/db/schema"
-import type { APIRoute } from "astro"
-import { and, eq, gt } from "drizzle-orm"
 
-export const DELETE: APIRoute = async ({ params, locals }) => {
-  const currentUser = locals.user
+export const DELETE: APIRoute = async ({ params, request, locals }) => {
+  const { user, response } = requireAdmin(locals)
+  if (!user) return response
 
-  if (!currentUser || !currentUser.isAdmin) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "No tienes permisos para acceder a este recurso"
-      }),
-      {
-        status: 403,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+  const appointmentId = params.id
+
+  if (!isUuid(appointmentId)) {
+    return fail("Identificador de cita inválido.")
   }
 
   try {
-    const appointmentId = params.id
-
-    if (!appointmentId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "ID de cita no proporcionado"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const [deletedAppointment] = await db
-      .delete(appointments)
+    const [appointment] = await db
+      .select({ id: appointments.id, userId: appointments.userId })
+      .from(appointments)
       .where(eq(appointments.id, appointmentId))
-      .returning({
-        id: appointments.id,
-        appointmentDate: appointments.appointmentDate,
-        status: appointments.status,
-        createdAt: appointments.createdAt,
-      })
+      .limit(1)
 
-    if (!deletedAppointment) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Cita no encontrada"
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" }
-        }
+    if (!appointment) return errors.notFound("Cita")
+
+    // Borrar un hueco ya reservado deja al cliente sin cita, así que hay que
+    // pedirlo explícitamente desde el panel de reservas.
+    const url = new URL(request.url)
+    if (appointment.userId !== null && url.searchParams.get("force") !== "true") {
+      return fail(
+        "Esa cita ya está reservada por un cliente. Cancélala desde 'Reservas actuales'.",
+        409,
       )
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Cita eliminada exitosamente",
-        appointment: deletedAppointment
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    await db.delete(appointments).where(eq(appointments.id, appointmentId))
 
+    return ok({ message: "Cita eliminada correctamente.", id: appointmentId })
   } catch (error) {
-    console.error(error)
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Error interno del servidor"
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    console.error("Error al eliminar la cita:", error)
+    return errors.server()
   }
 }
 
 export const PATCH: APIRoute = async ({ params, locals }) => {
-  const currentUser = locals.user
+  const { user, response } = requireUser(locals)
+  if (!user) return response
 
-  if (!currentUser) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "No estás autenticado"
-      }),
-      {
-        status: 403,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+  if (!user.isApproved) {
+    return fail("Tu cuenta todavía está pendiente de aprobación.", 403)
   }
 
   const appointmentId = params.id
 
-  if (!appointmentId) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "ID de cita no proporcionado"
-      }),
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+  if (!isUuid(appointmentId)) {
+    return fail("Identificador de cita inválido.")
   }
 
-
   try {
-    const date = new Date()
+    const nowDate = new Date()
 
-    const [appointmentByUser] = await db
-      .select()
+    const [alreadyBooked] = await db
+      .select({ id: appointments.id })
       .from(appointments)
-      .where(and(eq(appointments.userId, currentUser.id), gt(appointments.appointmentDate, date)))
-
-    if (appointmentByUser) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Ya tienes una cita reservada"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
+      .where(
+        and(
+          eq(appointments.userId, user.id),
+          gt(appointments.appointmentDate, nowDate),
+          ne(appointments.status, "cancelled"),
+        ),
       )
+      .limit(1)
+
+    if (alreadyBooked) {
+      return fail("Ya tienes una cita reservada.", 409)
     }
 
-    const [appointment] = await db
-      .select({
-        id: appointments.id,
-        userId: appointments.userId,
-      })
-      .from(appointments)
-      .where(eq(appointments.id, appointmentId))
-
-    if (!appointment) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Cita no encontrada"
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    if (appointment.userId !== null) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "La cita ya está reservada"
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
-    }
-
-    const [updatedAppointment] = await db
+    // Un único UPDATE condicional: si dos clientes pulsan a la vez, solo uno
+    // encuentra el hueco libre y el otro recibe el aviso.
+    const [updated] = await db
       .update(appointments)
-      .set({
-        userId: currentUser.id,
-        status: "confirmed"
-      })
-      .where(eq(appointments.id, appointmentId))
+      .set({ userId: user.id, status: "confirmed" })
+      .where(
+        and(
+          eq(appointments.id, appointmentId),
+          isNull(appointments.userId),
+          gt(appointments.appointmentDate, nowDate),
+        ),
+      )
       .returning({
         id: appointments.id,
         appointmentDate: appointments.appointmentDate,
         status: appointments.status,
-        createdAt: appointments.createdAt,
       })
 
-    if (!updatedAppointment) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Cita no encontrada"
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" }
-        }
-      )
+    if (!updated) {
+      const [appointment] = await db
+        .select({ id: appointments.id, userId: appointments.userId, appointmentDate: appointments.appointmentDate })
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+        .limit(1)
+
+      if (!appointment) return errors.notFound("Cita")
+      if (appointment.userId !== null) return fail("Esa cita acaba de ser reservada.", 409)
+      return fail("Esa cita ya ha pasado.", 409)
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Cita actualizada exitosamente",
-        appointment: updatedAppointment
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
-
+    return ok({
+      message: "Cita reservada correctamente.",
+      appointment: { ...updated, appointmentDate: updated.appointmentDate.toISOString() },
+    })
   } catch (error) {
-    console.error(error)
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Error interno del servidor"
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    console.error("Error al reservar la cita:", error)
+    return errors.server()
+  }
+}
+
+/** Libera un hueco reservado: el cliente pierde la reserva pero la hora sigue disponible. */
+export const PUT: APIRoute = async ({ params, locals }) => {
+  const { user, response } = requireAdmin(locals)
+  if (!user) return response
+
+  const appointmentId = params.id
+
+  if (!isUuid(appointmentId)) {
+    return fail("Identificador de cita inválido.")
+  }
+
+  try {
+    const [updated] = await db
+      .update(appointments)
+      .set({ userId: null, status: "pending" })
+      .where(eq(appointments.id, appointmentId))
+      .returning({ id: appointments.id })
+
+    if (!updated) return errors.notFound("Cita")
+
+    return ok({ message: "Reserva cancelada. El hueco vuelve a estar libre.", id: updated.id })
+  } catch (error) {
+    console.error("Error al cancelar la reserva:", error)
+    return errors.server()
   }
 }

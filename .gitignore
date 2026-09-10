@@ -23,6 +23,7 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-drizzle
+# (las migraciones sí se versionan: se aplican solas al desplegar)
 
-docker-compose.yml
+# (docker-compose.yml sí se versiona: no contiene secretos, solo referencias
+#  a las variables del .env del servidor)

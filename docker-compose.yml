@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: darocutz_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: darocutz
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: darocutz_db
+      TZ: Europe/Madrid
+    # Sin "ports": la base de datos solo es accesible desde la red interna.
+    # Para administrarla, túnel SSH contra el contenedor; nunca publiques 5432.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darocutz -d darocutz_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    # Sin "args": la imagen se construye sin secretos, así no quedan grabados
+    # en el historial de capas. Todo se lee en tiempo de ejecución.
+    build:
+      context: .
+    container_name: darocutz_app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:4321"
+    environment:
+      DATABASE_URL: postgresql://darocutz:${DB_PASSWORD}@postgres:5432/darocutz_db
+      JWT_SECRET: ${JWT_SECRET}
+      # "auto": la cookie se marca Secure sola cuando la petición llega por
+      # https. Fuerza "true" o "false" solo si hiciera falta.
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      TZ: Europe/Madrid
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:

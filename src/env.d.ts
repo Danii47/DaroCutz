@@ -1,18 +1,13 @@
-interface ImportMetaEnv {
-  readonly DATABASE_URL: string;
-  readonly JWT_SECRET: string;
-  readonly NODE_ENV: 'development' | 'production';
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
+/// <reference types="astro/client" />
 
 declare namespace NodeJS {
   interface ProcessEnv {
     readonly DATABASE_URL: string;
     readonly JWT_SECRET: string;
-    readonly NODE_ENV: 'development' | 'production';
+    /** "true" | "false" | "auto" (por defecto): marca la cookie como Secure. */
+    readonly COOKIE_SECURE?: string;
+    readonly NODE_ENV?: 'development' | 'production';
+    readonly TZ?: string;
   }
 }
 
