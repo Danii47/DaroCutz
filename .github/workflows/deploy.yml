@@ -16,11 +16,17 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          # Corta a la primera orden que falle. Sin esto, un "git pull" fallido
+          # seguía adelante y redesplegaba el código viejo dando el job por bueno.
+          script_stop: true
           script: |
             cd /home/dani47/DaroCutz
 
-            git pull origin main
+            # El servidor es un espejo de la rama: se descarta cualquier cambio
+            # local en ficheros versionados. Los no versionados (.env) no se tocan.
+            git fetch origin main
+            git reset --hard origin/main
 
             docker compose up -d --build
-            
+
             docker image prune -f
